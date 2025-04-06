@@ -9,20 +9,20 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <ShoppingBag className="h-6 w-6 text-auction-gold" />
+              <ShoppingBag className="h-6 w-6 text-accent" />
               <span className="text-xl font-bold">AuctionBliss</span>
             </div>
             <p className="text-gray-300">
               Your premium destination for online auctions. Bid, win, and discover unique items.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-gray-300 hover:text-auction-gold">
+              <a href="#" className="text-gray-300 hover:text-accent">
                 <Facebook size={20} />
               </a>
-              <a href="#" className="text-gray-300 hover:text-auction-gold">
+              <a href="#" className="text-gray-300 hover:text-accent">
                 <Instagram size={20} />
               </a>
-              <a href="#" className="text-gray-300 hover:text-auction-gold">
+              <a href="#" className="text-gray-300 hover:text-accent">
                 <Twitter size={20} />
               </a>
             </div>
@@ -32,22 +32,22 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/auctions" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/auctions" className="text-gray-300 hover:text-accent">
                   Current Auctions
                 </Link>
               </li>
               <li>
-                <Link to="/categories" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/categories" className="text-gray-300 hover:text-accent">
                   Categories
                 </Link>
               </li>
               <li>
-                <Link to="/how-it-works" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/about" className="text-gray-300 hover:text-accent">
                   How It Works
                 </Link>
               </li>
               <li>
-                <Link to="/faq" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/contact" className="text-gray-300 hover:text-accent">
                   FAQs
                 </Link>
               </li>
@@ -58,22 +58,22 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Customer Support</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/contact" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/contact" className="text-gray-300 hover:text-accent">
                   Contact Us
                 </Link>
               </li>
               <li>
-                <Link to="/privacy-policy" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/privacy-policy" className="text-gray-300 hover:text-accent">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link to="/terms" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/terms" className="text-gray-300 hover:text-accent">
                   Terms & Conditions
                 </Link>
               </li>
               <li>
-                <Link to="/returns" className="text-gray-300 hover:text-auction-gold">
+                <Link to="/contact" className="text-gray-300 hover:text-accent">
                   Returns & Refunds
                 </Link>
               </li>
@@ -84,15 +84,15 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Contact Info</h3>
             <ul className="space-y-3">
               <li className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-auction-gold mt-0.5" />
+                <MapPin className="h-5 w-5 text-accent mt-0.5" />
                 <span className="text-gray-300">123 Auction Avenue, Bidding City, BC 12345</span>
               </li>
               <li className="flex items-center gap-3">
-                <Phone className="h-5 w-5 text-auction-gold" />
+                <Phone className="h-5 w-5 text-accent" />
                 <span className="text-gray-300">+1 (555) 123-4567</span>
               </li>
               <li className="flex items-center gap-3">
-                <Mail className="h-5 w-5 text-auction-gold" />
+                <Mail className="h-5 w-5 text-accent" />
                 <span className="text-gray-300">support@auctionbliss.com</span>
               </li>
             </ul>

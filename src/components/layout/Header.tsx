@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -11,6 +11,11 @@ import { Search, Menu, ShoppingBag, LogIn, Bell } from "lucide-react";
 
 const Header = () => {
   const [isLoggedIn] = useState(false);
+  const location = useLocation();
+
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
@@ -47,26 +52,41 @@ const Header = () => {
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <ShoppingBag className="h-6 w-6 text-auction-purple" />
+            <ShoppingBag className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold">AuctionBliss</span>
           </Link>
         </div>
 
         {/* Desktop navigation */}
         <nav className="hidden md:flex items-center gap-6">
-          <Link to="/" className="text-sm font-medium hover:text-primary">
+          <Link 
+            to="/" 
+            className={`text-sm font-medium ${isActive('/') ? 'text-primary' : 'hover:text-primary'}`}
+          >
             Home
           </Link>
-          <Link to="/auctions" className="text-sm font-medium hover:text-primary">
+          <Link 
+            to="/auctions" 
+            className={`text-sm font-medium ${isActive('/auctions') ? 'text-primary' : 'hover:text-primary'}`}
+          >
             Auctions
           </Link>
-          <Link to="/categories" className="text-sm font-medium hover:text-primary">
+          <Link 
+            to="/categories" 
+            className={`text-sm font-medium ${isActive('/categories') ? 'text-primary' : 'hover:text-primary'}`}
+          >
             Categories
           </Link>
-          <Link to="/about" className="text-sm font-medium hover:text-primary">
+          <Link 
+            to="/about" 
+            className={`text-sm font-medium ${isActive('/about') ? 'text-primary' : 'hover:text-primary'}`}
+          >
             About
           </Link>
-          <Link to="/contact" className="text-sm font-medium hover:text-primary">
+          <Link 
+            to="/contact" 
+            className={`text-sm font-medium ${isActive('/contact') ? 'text-primary' : 'hover:text-primary'}`}
+          >
             Contact
           </Link>
         </nav>
