@@ -7,10 +7,10 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Search, Menu, ShoppingBag, LogIn, Bell } from "lucide-react";
+import { Search, Menu, ShoppingBag, LogIn, Bell, User, Heart } from "lucide-react";
 
 const Header = () => {
-  const [isLoggedIn] = useState(false);
+  const [isLoggedIn] = useState(true); // Setting to true for now to show user profile and cart options
   const location = useLocation();
 
   const isActive = (path: string) => {
@@ -46,6 +46,16 @@ const Header = () => {
                 <Link to="/contact" className="text-lg font-semibold hover:text-primary">
                   Contact
                 </Link>
+                {isLoggedIn && (
+                  <>
+                    <Link to="/profile" className="text-lg font-semibold hover:text-primary">
+                      My Profile
+                    </Link>
+                    <Link to="/cart" className="text-lg font-semibold hover:text-primary">
+                      Saved Items
+                    </Link>
+                  </>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
@@ -103,9 +113,15 @@ const Header = () => {
                 <Bell className="h-5 w-5" />
                 <span className="sr-only">Notifications</span>
               </Button>
-              <Link to="/dashboard">
+              <Link to="/cart">
+                <Button variant="ghost" size="icon">
+                  <Heart className="h-5 w-5" />
+                  <span className="sr-only">Saved Items</span>
+                </Button>
+              </Link>
+              <Link to="/profile">
                 <Button variant="outline" className="hidden md:inline-flex gap-2">
-                  My Dashboard
+                  <User className="h-4 w-4" /> My Profile
                 </Button>
               </Link>
             </>

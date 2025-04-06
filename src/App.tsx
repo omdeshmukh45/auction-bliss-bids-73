@@ -12,6 +12,8 @@ import Categories from "./pages/Categories";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import AuctionDetail from "./pages/AuctionDetail";
+import Profile from "./pages/Profile";
+import Cart from "./pages/Cart";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,8 @@ const App = () => (
           <Route path="/categories" element={<Categories />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/cart" element={<Cart />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

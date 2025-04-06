@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
-// Sample categories data
+// Sample categories data with updated electronics subcategories
 const categories = [
   {
     id: "electronics",
@@ -12,6 +12,20 @@ const categories = [
     description: "Computers, smartphones, audio equipment, and more",
     icon: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTB8fGVsZWN0cm9uaWNzfGVufDB8fDB8fHww",
     itemCount: 152,
+    subcategories: [
+      { id: "smartphones", name: "Mobile Phones" },
+      { id: "laptops", name: "Laptops" },
+      { id: "tablets", name: "Tablets" },
+      { id: "televisions", name: "Televisions" },
+      { id: "cameras", name: "Cameras" },
+    ]
+  },
+  {
+    id: "jewelry",
+    name: "Jewelry & Watches",
+    description: "Fine jewelry, luxury watches, and precious gems",
+    icon: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTV8fGpld2Vscnl8ZW58MHx8MHx8fDA%3D",
+    itemCount: 76,
   },
   {
     id: "art",
@@ -26,13 +40,6 @@ const categories = [
     description: "Clothing, shoes, accessories, and vintage attire",
     icon: "https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTB8fGZhc2hpb258ZW58MHx8MHx8fDA%3D",
     itemCount: 213,
-  },
-  {
-    id: "jewelry",
-    name: "Jewelry & Watches",
-    description: "Fine jewelry, luxury watches, and precious gems",
-    icon: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTV8fGpld2Vscnl8ZW58MHx8MHx8fDA%3D",
-    itemCount: 76,
   },
   {
     id: "furniture",
@@ -123,6 +130,26 @@ const Categories = () => {
                 <p className="text-muted-foreground mb-4 flex-1">
                   {category.description}
                 </p>
+                
+                {/* Display subcategories for Electronics */}
+                {category.id === 'electronics' && category.subcategories && (
+                  <div className="mb-4">
+                    <h4 className="font-medium mb-2">Subcategories:</h4>
+                    <ul className="grid grid-cols-2 gap-1 text-sm">
+                      {category.subcategories.map(subcat => (
+                        <li key={subcat.id}>
+                          <Link 
+                            to={`/auctions?category=${category.id}&subcategory=${subcat.id}`}
+                            className="text-primary hover:underline"
+                          >
+                            {subcat.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
                 <Link to={`/auctions?category=${category.id}`} className="self-start">
                   <Button variant="outline" className="group-hover:bg-primary group-hover:text-white transition-colors flex gap-2">
                     Browse Category

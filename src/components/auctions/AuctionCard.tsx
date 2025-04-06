@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Heart } from "lucide-react";
+import { formatPriceDisplay } from "@/utils/currency";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuctionCardProps {
   id: string;
@@ -13,6 +15,7 @@ interface AuctionCardProps {
   bids: number;
   isHot?: boolean;
   isNew?: boolean;
+  location?: string;
 }
 
 const AuctionCard = ({
@@ -24,7 +27,21 @@ const AuctionCard = ({
   bids,
   isHot = false,
   isNew = false,
+  location,
 }: AuctionCardProps) => {
+  const { toast } = useToast();
+  
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // In a real app, this would add to a persistent cart/saved items
+    toast({
+      title: "Item saved",
+      description: `${title} has been added to your saved items.`,
+    });
+  };
+
   return (
     <div className="auction-card group">
       <div className="relative overflow-hidden">
@@ -34,9 +51,14 @@ const AuctionCard = ({
           className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         <div className="absolute top-2 right-2 flex flex-col gap-2">
-          <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full">
+          <Button 
+            size="icon" 
+            variant="secondary" 
+            className="h-8 w-8 rounded-full"
+            onClick={handleAddToCart}
+          >
             <Heart className="h-4 w-4" />
-            <span className="sr-only">Add to wishlist</span>
+            <span className="sr-only">Add to saved items</span>
           </Button>
         </div>
         {isHot && (
@@ -59,7 +81,9 @@ const AuctionCard = ({
         <div className="flex justify-between items-center mb-3">
           <div>
             <p className="text-sm text-muted-foreground">Current Bid:</p>
-            <p className="text-lg font-bold text-auction-purple">${currentBid.toLocaleString()}</p>
+            <p className="text-lg font-bold text-auction-purple">
+              {formatPriceDisplay(currentBid)}
+            </p>
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">{bids} bids</p>
@@ -76,6 +100,11 @@ const AuctionCard = ({
             </Button>
           </Link>
         </div>
+        {location && (
+          <div className="mt-2 text-sm text-muted-foreground">
+            Location: {location}
+          </div>
+        )}
       </div>
     </div>
   );

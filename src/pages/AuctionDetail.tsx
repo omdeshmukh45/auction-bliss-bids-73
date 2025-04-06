@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { formatPriceDisplay } from "@/utils/currency";
 import {
   Clock,
   Eye,
@@ -52,6 +53,7 @@ const auctionData = {
     timeLeft: "2 days, 4 hours",
     bids: 28,
     views: 342,
+    location: "New York, USA",
     seller: {
       name: "LuxuryVintageWatches",
       rating: 4.9,
@@ -60,7 +62,6 @@ const auctionData = {
     },
     category: "Jewelry & Watches",
     condition: "Excellent",
-    location: "New York, USA",
     shippingOptions: ["Insured Shipping", "Local Pickup"],
     paymentMethods: ["Credit Card", "Bank Transfer", "Escrow"],
     bidHistory: [
@@ -104,7 +105,7 @@ const AuctionDetail = () => {
     if (isNaN(amount) || amount < auction.nextMinimumBid) {
       toast({
         title: "Invalid bid amount",
-        description: `Your bid must be at least $${auction.nextMinimumBid.toLocaleString()}.`,
+        description: `Your bid must be at least ${formatPriceDisplay(auction.nextMinimumBid)}.`,
         variant: "destructive",
       });
       return;
@@ -113,7 +114,7 @@ const AuctionDetail = () => {
     // In a real app, we would send this to an API
     toast({
       title: "Bid placed successfully!",
-      description: `You've placed a bid of $${amount.toLocaleString()} on ${auction.title}.`,
+      description: `You've placed a bid of ${formatPriceDisplay(amount)} on ${auction.title}.`,
       variant: "default",
     });
 
@@ -124,9 +125,9 @@ const AuctionDetail = () => {
   const toggleWatchlist = () => {
     setIsWatching(!isWatching);
     toast({
-      title: isWatching ? "Removed from watchlist" : "Added to watchlist",
+      title: isWatching ? "Removed from saved items" : "Added to saved items",
       description: isWatching
-        ? "Item removed from your watchlist"
+        ? "Item removed from your saved items"
         : "You'll receive notifications about this auction",
       variant: "default",
     });
@@ -357,7 +358,7 @@ const AuctionDetail = () => {
                     {auction.bidHistory.map((bid, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">{bid.bidder}</TableCell>
-                        <TableCell>${bid.amount.toLocaleString()}</TableCell>
+                        <TableCell>{formatPriceDisplay(bid.amount)}</TableCell>
                         <TableCell>{bid.time}</TableCell>
                       </TableRow>
                     ))}
@@ -385,7 +386,7 @@ const AuctionDetail = () => {
                   <div>
                     <p className="text-sm text-muted-foreground">Current Bid:</p>
                     <p className="text-3xl font-bold text-auction-purple">
-                      ${auction.currentBid.toLocaleString()}
+                      {formatPriceDisplay(auction.currentBid)}
                     </p>
                   </div>
 
@@ -398,8 +399,16 @@ const AuctionDetail = () => {
                   </div>
 
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Starting Bid: ${auction.startingBid.toLocaleString()}</span>
+                    <span>Starting Bid: {formatPriceDisplay(auction.startingBid)}</span>
                     <span>{auction.bids} bids</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      <span className="font-medium">Location:</span>{" "}
+                      {auction.location}
+                    </span>
                   </div>
                 </div>
 
@@ -424,7 +433,7 @@ const AuctionDetail = () => {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Enter ${auction.nextMinimumBid.toLocaleString()} or more
+                      Enter {formatPriceDisplay(auction.nextMinimumBid)} or more
                     </p>
                   </div>
                   <Button className="w-full" size="lg" onClick={handlePlaceBid}>
@@ -443,7 +452,7 @@ const AuctionDetail = () => {
                           isWatching ? "fill-red-500 text-red-500" : ""
                         }`}
                       />
-                      {isWatching ? "Watching" : "Add to Watchlist"}
+                      {isWatching ? "Saved" : "Save Item"}
                     </Button>
                     <Button
                       variant="outline"
