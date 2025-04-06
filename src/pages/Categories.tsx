@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
-// Sample categories data with updated electronics subcategories
+// Sample categories data with updated subcategories
 const categories = [
   {
     id: "electronics",
@@ -26,6 +26,12 @@ const categories = [
     description: "Fine jewelry, luxury watches, and precious gems",
     icon: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTV8fGpld2Vscnl8ZW58MHx8MHx8fDA%3D",
     itemCount: 76,
+    subcategories: [
+      { id: "rings", name: "Rings" },
+      { id: "necklaces", name: "Necklaces" },
+      { id: "watches", name: "Luxury Watches" },
+      { id: "bracelets", name: "Bracelets" },
+    ]
   },
   {
     id: "art",
@@ -33,6 +39,12 @@ const categories = [
     description: "Paintings, sculptures, limited editions, and rare items",
     icon: "https://images.unsplash.com/photo-1579783928621-7a13d66a62d1?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTJ8fGFydHxlbnwwfHwwfHx8MA%3D%3D",
     itemCount: 98,
+    subcategories: [
+      { id: "paintings", name: "Paintings" },
+      { id: "sculptures", name: "Sculptures" },
+      { id: "prints", name: "Prints & Posters" },
+      { id: "antiques", name: "Antiques" },
+    ]
   },
   {
     id: "fashion",
@@ -40,6 +52,12 @@ const categories = [
     description: "Clothing, shoes, accessories, and vintage attire",
     icon: "https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTB8fGZhc2hpb258ZW58MHx8MHx8fDA%3D",
     itemCount: 213,
+    subcategories: [
+      { id: "clothing", name: "Clothing" },
+      { id: "shoes", name: "Shoes" },
+      { id: "bags", name: "Bags & Accessories" },
+      { id: "vintage", name: "Vintage Apparel" },
+    ]
   },
   {
     id: "furniture",
@@ -131,8 +149,8 @@ const Categories = () => {
                   {category.description}
                 </p>
                 
-                {/* Display subcategories for Electronics */}
-                {category.id === 'electronics' && category.subcategories && (
+                {/* Display subcategories if they exist */}
+                {category.subcategories && (
                   <div className="mb-4">
                     <h4 className="font-medium mb-2">Subcategories:</h4>
                     <ul className="grid grid-cols-2 gap-1 text-sm">
