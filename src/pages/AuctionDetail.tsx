@@ -19,6 +19,13 @@ import {
   Package,
   Truck,
   Banknote,
+  Watch,
+  Laptop,
+  Car,
+  Box,
+  Jewelry,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import {
   Tabs,
@@ -34,6 +41,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 
 // Sample auction data (in a real app, this would come from an API)
 const auctionData = {
@@ -83,7 +97,6 @@ const auctionData = {
 const AuctionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const [activeImage, setActiveImage] = useState(0);
   const [bidAmount, setBidAmount] = useState("");
   const [isWatching, setIsWatching] = useState(false);
 
@@ -153,6 +166,24 @@ const AuctionDetail = () => {
     );
   };
 
+  // Get placeholder icon based on category
+  const getPlaceholderIcon = () => {
+    if (!auction.category) return <Box className="h-24 w-24 text-muted-foreground" />;
+
+    const categoryLower = auction.category.toLowerCase();
+    if (categoryLower.includes("watch")) {
+      return <Watch className="h-24 w-24 text-muted-foreground" />;
+    } else if (categoryLower.includes("laptop") || categoryLower.includes("electronics")) {
+      return <Laptop className="h-24 w-24 text-muted-foreground" />;
+    } else if (categoryLower.includes("jewelry")) {
+      return <Jewelry className="h-24 w-24 text-muted-foreground" />;
+    } else if (categoryLower.includes("vehicle") || categoryLower.includes("car")) {
+      return <Car className="h-24 w-24 text-muted-foreground" />;
+    } else {
+      return <Box className="h-24 w-24 text-muted-foreground" />;
+    }
+  };
+
   if (!auction) {
     return (
       <Layout>
@@ -168,6 +199,8 @@ const AuctionDetail = () => {
     );
   }
 
+  const hasImages = auction.images && auction.images.length > 0;
+
   return (
     <Layout>
       <div className="auction-container py-8">
@@ -175,32 +208,50 @@ const AuctionDetail = () => {
           {/* Left Column - Images */}
           <div className="lg:col-span-2">
             <div className="mb-4">
-              <div className="relative rounded-lg overflow-hidden bg-muted h-[400px] md:h-[500px]">
-                <img
-                  src={auction.images[activeImage]}
-                  alt={auction.title}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <div className="flex mt-4 gap-2 overflow-x-auto pb-2">
-                {auction.images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setActiveImage(index)}
-                    className={`relative min-w-[80px] h-20 rounded-md overflow-hidden border-2 ${
-                      activeImage === index
-                        ? "border-primary"
-                        : "border-transparent"
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt={`Thumbnail ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
+              {hasImages ? (
+                <Carousel className="w-full">
+                  <CarouselContent>
+                    {auction.images.map((image, i) => (
+                      <CarouselItem key={i}>
+                        <div className="relative rounded-lg overflow-hidden bg-muted h-[400px] md:h-[500px]">
+                          <img
+                            src={image}
+                            alt={`${auction.title} - Image ${i+1}`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  {auction.images.length > 1 && (
+                    <>
+                      <CarouselPrevious className="left-2" />
+                      <CarouselNext className="right-2" />
+                    </>
+                  )}
+                </Carousel>
+              ) : (
+                <div className="relative rounded-lg overflow-hidden bg-muted h-[400px] md:h-[500px] flex flex-col items-center justify-center">
+                  {getPlaceholderIcon()}
+                  <p className="mt-4 text-muted-foreground">No images available</p>
+                </div>
+              )}
+              {hasImages && (
+                <div className="flex mt-4 gap-2 overflow-x-auto pb-2">
+                  {auction.images.map((image, index) => (
+                    <div
+                      key={index}
+                      className="relative min-w-[80px] h-20 rounded-md overflow-hidden border-2 border-muted"
+                    >
+                      <img
+                        src={image}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Product Details Tabs */}

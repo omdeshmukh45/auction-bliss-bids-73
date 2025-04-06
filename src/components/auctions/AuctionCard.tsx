@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Heart } from "lucide-react";
+import { Clock, Heart, Watch, Laptop, Car, Box, Jewelry } from "lucide-react";
 import { formatPriceDisplay } from "@/utils/currency";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,6 +16,7 @@ interface AuctionCardProps {
   isHot?: boolean;
   isNew?: boolean;
   location?: string;
+  category?: string;
 }
 
 const AuctionCard = ({
@@ -28,6 +29,7 @@ const AuctionCard = ({
   isHot = false,
   isNew = false,
   location,
+  category,
 }: AuctionCardProps) => {
   const { toast } = useToast();
   
@@ -42,14 +44,39 @@ const AuctionCard = ({
     });
   };
 
+  // Get placeholder image based on category
+  const getPlaceholderIcon = () => {
+    if (!category) return <Box className="h-12 w-12 text-muted-foreground" />;
+
+    const categoryLower = category.toLowerCase();
+    if (categoryLower.includes("watch")) {
+      return <Watch className="h-12 w-12 text-muted-foreground" />;
+    } else if (categoryLower.includes("laptop") || categoryLower.includes("electronics")) {
+      return <Laptop className="h-12 w-12 text-muted-foreground" />;
+    } else if (categoryLower.includes("jewelry")) {
+      return <Jewelry className="h-12 w-12 text-muted-foreground" />;
+    } else if (categoryLower.includes("vehicle") || categoryLower.includes("car")) {
+      return <Car className="h-12 w-12 text-muted-foreground" />;
+    } else {
+      return <Box className="h-12 w-12 text-muted-foreground" />;
+    }
+  };
+
   return (
     <div className="auction-card group">
       <div className="relative overflow-hidden">
-        <img
-          src={image}
-          alt={title}
-          className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
-        />
+        {image ? (
+          <img
+            src={image}
+            alt={title}
+            className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="h-48 w-full bg-muted flex items-center justify-center">
+            {getPlaceholderIcon()}
+            <span className="sr-only">No image available</span>
+          </div>
+        )}
         <div className="absolute top-2 right-2 flex flex-col gap-2">
           <Button 
             size="icon" 
