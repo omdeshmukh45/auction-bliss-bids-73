@@ -1,294 +1,342 @@
 
-import { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Layout from "@/components/layout/Layout";
-import { ShoppingBag, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { loginUser, registerUser } from "@/services/authService";
-import { useAuth } from "@/context/AuthContext";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import Layout from "@/components/layout/Layout";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 const Login = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [signupData, setSignupData] = useState({ 
-    name: "", 
-    email: "", 
-    password: "", 
-    confirmPassword: "" 
-  });
-  const [loginError, setLoginError] = useState("");
-  const [signupError, setSignupError] = useState("");
-  const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
-  
-  // Check for redirect path from previous location
-  const from = location.state?.from?.pathname || '/profile';
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState(
+    location.pathname === "/signup" ? "signup" : "login"
+  );
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate(from, { replace: true });
-    }
-  }, [isAuthenticated, navigate, from]);
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target;
-    setLoginData(prev => ({ ...prev, [id.replace('login-', '')]: value }));
-    setLoginError(""); // Clear error when user changes input
-  };
+  // Signup form state
+  const [signupName, setSignupName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
 
-  const handleSignupChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target;
-    setSignupData(prev => ({ ...prev, [id.replace('signup-', '')]: value }));
-    setSignupError(""); // Clear error when user changes input
-  };
-
+  // Handle login submission
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError("");
-    setIsLoading(true);
     
-    if (!loginData.email || !loginData.password) {
-      setLoginError("Please enter both email and password");
-      setIsLoading(false);
+    if (!loginEmail || !loginPassword) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
       return;
     }
     
+    setIsLoggingIn(true);
+    
     try {
-      await loginUser(loginData.email, loginData.password);
+      const result = await loginUser(loginEmail, loginPassword);
       
+      if (result.success) {
+        toast({
+          title: "Login Successful",
+          description: "Welcome back!",
+        });
+        
+        // Redirect to home or previous page
+        const from = location.state?.from?.pathname || "/";
+        navigate(from);
+      } else {
+        toast({
+          title: "Login Failed",
+          description: result.message || "Invalid email or password",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
       toast({
-        title: "Login successful",
-        description: "Welcome back to AuctionBliss!",
+        title: "Login Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
       });
-      
-      navigate(from, { replace: true });
-    } catch (error: any) {
       console.error("Login error:", error);
-      setLoginError(error.message || "Login failed. Please check your credentials and try again.");
     } finally {
-      setIsLoading(false);
+      setIsLoggingIn(false);
     }
   };
 
+  // Handle signup submission
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSignupError("");
-    setIsLoading(true);
     
-    if (!signupData.name || !signupData.email || !signupData.password) {
-      setSignupError("Please fill in all required fields");
-      setIsLoading(false);
+    if (!signupName || !signupEmail || !signupPassword || !signupConfirmPassword) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
       return;
     }
     
-    if (signupData.password !== signupData.confirmPassword) {
-      setSignupError("Passwords don't match");
-      setIsLoading(false);
+    if (signupPassword !== signupConfirmPassword) {
+      toast({
+        title: "Password Mismatch",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
       return;
     }
     
-    if (signupData.password.length < 6) {
-      setSignupError("Password must be at least 6 characters");
-      setIsLoading(false);
+    if (signupPassword.length < 6) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters",
+        variant: "destructive",
+      });
       return;
     }
+    
+    setIsSigningUp(true);
     
     try {
-      await registerUser(signupData.email, signupData.password, signupData.name);
+      const result = await registerUser(signupName, signupEmail, signupPassword);
       
-      toast({
-        title: "Account created",
-        description: "Welcome to AuctionBliss! Your account has been created.",
-      });
-      
-      navigate(from, { replace: true });
-    } catch (error: any) {
-      console.error("Signup error:", error);
-      
-      if (error.message.includes('email already in use') || error.message.includes('already registered')) {
-        setSignupError("This email is already registered. Please use a different email or login.");
+      if (result.success) {
+        toast({
+          title: "Account Created",
+          description: "Your account has been created successfully!",
+        });
+        
+        // Redirect to home
+        navigate("/");
       } else {
-        setSignupError(error.message || "There was a problem creating your account.");
+        toast({
+          title: "Signup Failed",
+          description: result.message || "There was a problem creating your account",
+          variant: "destructive",
+        });
       }
+    } catch (error) {
+      toast({
+        title: "Signup Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      console.error("Signup error:", error);
     } finally {
-      setIsLoading(false);
+      setIsSigningUp(false);
     }
   };
 
   return (
     <Layout>
-      <div className="auction-container py-12 flex justify-center">
-        <div className="max-w-md w-full">
-          <div className="flex justify-center mb-6">
-            <div className="rounded-full bg-auction-light p-3">
-              <ShoppingBag className="h-8 w-8 text-auction-purple" />
-            </div>
-          </div>
-          
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+      <div className="auction-container py-12">
+        <div className="max-w-md mx-auto bg-card rounded-lg border p-8">
+          <h1 className="text-2xl font-bold text-center mb-6">
+            {activeTab === "login" ? "Login to Your Account" : "Create an Account"}
+          </h1>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid grid-cols-2 w-full mb-6">
               <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Create Account</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="login">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Welcome Back</CardTitle>
-                  <CardDescription>
-                    Enter your credentials to access your account
-                  </CardDescription>
-                </CardHeader>
-                <form onSubmit={handleLogin}>
-                  <CardContent className="space-y-4">
-                    {loginError && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{loginError}</AlertDescription>
-                      </Alert>
-                    )}
-                    <div className="space-y-2">
-                      <Label htmlFor="login-email">Email</Label>
-                      <Input 
-                        id="login-email" 
-                        type="email" 
-                        placeholder="your@email.com" 
-                        required
-                        value={loginData.email}
-                        onChange={handleLoginChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="login-password">Password</Label>
-                        <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-                          Forgot password?
-                        </Link>
-                      </div>
-                      <Input 
-                        id="login-password" 
-                        type="password" 
-                        required
-                        value={loginData.password}
-                        onChange={handleLoginChange}
-                      />
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Logging in...
-                        </>
-                      ) : "Login"}
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">Email</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      type={showLoginPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    >
+                      {showLoginPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">
+                        {showLoginPassword ? "Hide password" : "Show password"}
+                      </span>
                     </Button>
-                  </CardFooter>
-                </form>
-              </Card>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+
+                <Button className="w-full" type="submit" disabled={isLoggingIn}>
+                  {isLoggingIn ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    "Login"
+                  )}
+                </Button>
+              </form>
             </TabsContent>
-            
+
             <TabsContent value="signup">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Create an Account</CardTitle>
-                  <CardDescription>
-                    Join AuctionBliss to start bidding on unique items
-                  </CardDescription>
-                </CardHeader>
-                <form onSubmit={handleSignup}>
-                  <CardContent className="space-y-4">
-                    {signupError && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{signupError}</AlertDescription>
-                      </Alert>
-                    )}
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-name">Full Name</Label>
-                      <Input 
-                        id="signup-name" 
-                        placeholder="John Smith" 
-                        required
-                        value={signupData.name}
-                        onChange={handleSignupChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-email">Email</Label>
-                      <Input 
-                        id="signup-email" 
-                        type="email" 
-                        placeholder="your@email.com" 
-                        required
-                        value={signupData.email}
-                        onChange={handleSignupChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-password">Create Password</Label>
-                      <Input 
-                        id="signup-password" 
-                        type="password" 
-                        required
-                        value={signupData.password}
-                        onChange={handleSignupChange}
-                        minLength={6}
-                      />
-                      <p className="text-xs text-muted-foreground">Password must be at least 6 characters</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-confirmPassword">Confirm Password</Label>
-                      <Input 
-                        id="signup-confirmPassword" 
-                        type="password" 
-                        required
-                        value={signupData.confirmPassword}
-                        onChange={handleSignupChange}
-                      />
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating account...
-                        </>
-                      ) : "Create Account"}
+              <form onSubmit={handleSignup} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-name">Full Name</Label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={signupName}
+                    onChange={(e) => setSignupName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      type={showSignupPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                      onClick={() => setShowSignupPassword(!showSignupPassword)}
+                    >
+                      {showSignupPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">
+                        {showSignupPassword ? "Hide password" : "Show password"}
+                      </span>
                     </Button>
-                  </CardFooter>
-                </form>
-              </Card>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Must be at least 6 characters
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-confirm-password"
+                      type={showSignupConfirmPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={signupConfirmPassword}
+                      onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                      onClick={() => setShowSignupConfirmPassword(!showSignupConfirmPassword)}
+                    >
+                      {showSignupConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">
+                        {showSignupConfirmPassword ? "Hide password" : "Show password"}
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+
+                <Button className="w-full" type="submit" disabled={isSigningUp}>
+                  {isSigningUp ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
+                </Button>
+              </form>
             </TabsContent>
           </Tabs>
-          
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            By continuing, you agree to AuctionBliss's{" "}
-            <Link to="/terms" className="text-primary hover:underline">
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link to="/privacy" className="text-primary hover:underline">
-              Privacy Policy
-            </Link>
-            .
+
+          <div className="mt-6 pt-6 border-t text-center text-sm text-muted-foreground">
+            <p>
+              By continuing, you agree to AuctionBliss's{" "}
+              <Link to="/terms" className="text-primary hover:underline">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="text-primary hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </div>
         </div>
       </div>
