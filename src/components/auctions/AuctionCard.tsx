@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Heart, Watch, Laptop, Car, Box, Jewelry } from "lucide-react";
+import { Clock, Heart, Watch, Laptop, Car, Box, GemIcon } from "lucide-react";
 import { formatPriceDisplay } from "@/utils/currency";
 import { useToast } from "@/hooks/use-toast";
 
@@ -54,7 +54,7 @@ const AuctionCard = ({
     } else if (categoryLower.includes("laptop") || categoryLower.includes("electronics")) {
       return <Laptop className="h-12 w-12 text-muted-foreground" />;
     } else if (categoryLower.includes("jewelry")) {
-      return <Jewelry className="h-12 w-12 text-muted-foreground" />;
+      return <GemIcon className="h-12 w-12 text-muted-foreground" />;
     } else if (categoryLower.includes("vehicle") || categoryLower.includes("car")) {
       return <Car className="h-12 w-12 text-muted-foreground" />;
     } else {

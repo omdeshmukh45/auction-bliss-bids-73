@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,37 +16,94 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Layout from "@/components/layout/Layout";
 import { ShoppingBag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { loginUser, registerUser } from "@/services/authService";
+import { useAuth } from "@/context/AuthContext";
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [loginData, setLoginData] = useState({ email: "", password: "" });
+  const [signupData, setSignupData] = useState({ 
+    name: "", 
+    email: "", 
+    password: "", 
+    confirmPassword: "" 
+  });
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Redirect if already logged in
+  if (currentUser) {
+    navigate('/profile');
+    return null;
+  }
+
+  const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setLoginData(prev => ({ ...prev, [id.replace('login-', '')]: value }));
+  };
+
+  const handleSignupChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setSignupData(prev => ({ ...prev, [id.replace('signup-', '')]: value }));
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await loginUser(loginData.email, loginData.password);
+      
       toast({
         title: "Login successful",
         description: "Welcome back to AuctionBliss!",
       });
-    }, 1500);
+      
+      navigate('/profile');
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "Please check your credentials and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate signup
-    setTimeout(() => {
+    if (signupData.password !== signupData.confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match.",
+        variant: "destructive",
+      });
       setIsLoading(false);
+      return;
+    }
+    
+    try {
+      await registerUser(signupData.email, signupData.password, signupData.name);
+      
       toast({
         title: "Account created",
         description: "Welcome to AuctionBliss! Your account has been created.",
       });
-    }, 1500);
+      
+      navigate('/profile');
+    } catch (error: any) {
+      toast({
+        title: "Registration failed",
+        description: error.message || "There was a problem creating your account.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -76,17 +133,30 @@ const Login = () => {
                 <form onSubmit={handleLogin}>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="your@email.com" required />
+                      <Label htmlFor="login-email">Email</Label>
+                      <Input 
+                        id="login-email" 
+                        type="email" 
+                        placeholder="your@email.com" 
+                        required
+                        value={loginData.email}
+                        onChange={handleLoginChange}
+                      />
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="password">Password</Label>
+                        <Label htmlFor="login-password">Password</Label>
                         <Link to="/forgot-password" className="text-sm text-primary hover:underline">
                           Forgot password?
                         </Link>
                       </div>
-                      <Input id="password" type="password" required />
+                      <Input 
+                        id="login-password" 
+                        type="password" 
+                        required
+                        value={loginData.password}
+                        onChange={handleLoginChange}
+                      />
                     </div>
                   </CardContent>
                   <CardFooter>
@@ -110,19 +180,44 @@ const Login = () => {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="signup-name">Full Name</Label>
-                      <Input id="signup-name" placeholder="John Smith" required />
+                      <Input 
+                        id="signup-name" 
+                        placeholder="John Smith" 
+                        required
+                        value={signupData.name}
+                        onChange={handleSignupChange}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signup-email">Email</Label>
-                      <Input id="signup-email" type="email" placeholder="your@email.com" required />
+                      <Input 
+                        id="signup-email" 
+                        type="email" 
+                        placeholder="your@email.com" 
+                        required
+                        value={signupData.email}
+                        onChange={handleSignupChange}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signup-password">Create Password</Label>
-                      <Input id="signup-password" type="password" required />
+                      <Input 
+                        id="signup-password" 
+                        type="password" 
+                        required
+                        value={signupData.password}
+                        onChange={handleSignupChange}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="signup-confirm">Confirm Password</Label>
-                      <Input id="signup-confirm" type="password" required />
+                      <Label htmlFor="signup-confirmPassword">Confirm Password</Label>
+                      <Input 
+                        id="signup-confirmPassword" 
+                        type="password" 
+                        required
+                        value={signupData.confirmPassword}
+                        onChange={handleSignupChange}
+                      />
                     </div>
                   </CardContent>
                   <CardFooter>

@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatPriceDisplay } from "@/utils/currency";
+import { useAuth } from "@/context/AuthContext";
+import { placeBid, listenToAuctionChanges } from "@/services/bidService";
 import {
   Clock,
   Eye,
@@ -23,9 +25,10 @@ import {
   Laptop,
   Car,
   Box,
-  Jewelry,
+  GemIcon,
   ArrowLeft,
   ArrowRight,
+  Loader2
 } from "lucide-react";
 import {
   Tabs,
@@ -48,8 +51,10 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { doc, getDoc, onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
-// Sample auction data (in a real app, this would come from an API)
+// Sample auction data (in a real app, this would come from Firebase)
 const auctionData = {
   auction1: {
     id: "auction1",
@@ -97,14 +102,92 @@ const auctionData = {
 const AuctionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const { currentUser } = useAuth();
   const [bidAmount, setBidAmount] = useState("");
   const [isWatching, setIsWatching] = useState(false);
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [auction, setAuction] = useState<any>(null);
+  const [bidHistory, setBidHistory] = useState<any[]>([]);
 
-  // In a real app, we would fetch the auction data based on the ID
-  // For demo purposes, we're using the sample data
-  const auction = auctionData.auction1; // In real app: auctionData[id]
+  // Fetch auction data and bidding history on mount
+  useEffect(() => {
+    if (!id) return;
+    
+    // Try to get auction from Firebase first
+    const fetchAuction = async () => {
+      setIsLoading(true);
+      try {
+        const auctionRef = doc(db, "auctions", id);
+        const auctionSnap = await getDoc(auctionRef);
+        
+        if (auctionSnap.exists()) {
+          // Real auction from Firebase
+          setAuction({
+            id: auctionSnap.id,
+            ...auctionSnap.data()
+          });
+          
+          // Set up real-time listener for bid history
+          const bidsQuery = query(
+            collection(db, "bids"),
+            orderBy("timestamp", "desc"),
+            limit(20)
+          );
+          
+          const unsubscribeBids = onSnapshot(bidsQuery, (snapshot) => {
+            const bids = snapshot.docs
+              .filter(doc => doc.data().auctionId === id)
+              .map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                time: new Date(doc.data().date).toLocaleDateString()
+              }));
+            
+            setBidHistory(bids);
+          });
+          
+          // Set up listener for auction updates (bids, etc.)
+          const unsubscribeAuction = listenToAuctionChanges(id, (updatedAuction) => {
+            setAuction(current => ({
+              ...current,
+              ...updatedAuction
+            }));
+          });
+          
+          return () => {
+            unsubscribeBids();
+            unsubscribeAuction();
+          };
+        } else {
+          // Fall back to sample data for demo
+          console.log("Auction not found in Firestore, using sample data");
+          setAuction(auctionData.auction1);
+          setBidHistory(auctionData.auction1.bidHistory);
+        }
+      } catch (error) {
+        console.error("Error fetching auction:", error);
+        // Fall back to sample data
+        setAuction(auctionData.auction1);
+        setBidHistory(auctionData.auction1.bidHistory);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAuction();
+  }, [id]);
 
-  const handlePlaceBid = () => {
+  const handlePlaceBid = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Login required",
+        description: "You must be logged in to place a bid.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!bidAmount) {
       toast({
         title: "Bid amount required",
@@ -124,18 +207,39 @@ const AuctionDetail = () => {
       return;
     }
 
-    // In a real app, we would send this to an API
-    toast({
-      title: "Bid placed successfully!",
-      description: `You've placed a bid of ${formatPriceDisplay(amount)} on ${auction.title}.`,
-      variant: "default",
-    });
+    setIsPlacingBid(true);
+    try {
+      await placeBid(id || auction.id, auction.title, amount);
+      
+      toast({
+        title: "Bid placed successfully!",
+        description: `You've placed a bid of ${formatPriceDisplay(amount)} on ${auction.title}.`,
+        variant: "default",
+      });
 
-    // Reset bid amount
-    setBidAmount("");
+      // Reset bid amount
+      setBidAmount("");
+    } catch (error: any) {
+      toast({
+        title: "Bid failed",
+        description: error.message || "There was a problem placing your bid. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPlacingBid(false);
+    }
   };
 
   const toggleWatchlist = () => {
+    if (!currentUser) {
+      toast({
+        title: "Login required",
+        description: "You must be logged in to save items.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsWatching(!isWatching);
     toast({
       title: isWatching ? "Removed from saved items" : "Added to saved items",
@@ -147,7 +251,6 @@ const AuctionDetail = () => {
   };
 
   const handleShare = () => {
-    // In a real app, this would open a share dialog or copy link to clipboard
     navigator.clipboard.writeText(window.location.href).then(
       () => {
         toast({
@@ -168,7 +271,7 @@ const AuctionDetail = () => {
 
   // Get placeholder icon based on category
   const getPlaceholderIcon = () => {
-    if (!auction.category) return <Box className="h-24 w-24 text-muted-foreground" />;
+    if (!auction?.category) return <Box className="h-24 w-24 text-muted-foreground" />;
 
     const categoryLower = auction.category.toLowerCase();
     if (categoryLower.includes("watch")) {
@@ -176,13 +279,26 @@ const AuctionDetail = () => {
     } else if (categoryLower.includes("laptop") || categoryLower.includes("electronics")) {
       return <Laptop className="h-24 w-24 text-muted-foreground" />;
     } else if (categoryLower.includes("jewelry")) {
-      return <Jewelry className="h-24 w-24 text-muted-foreground" />;
+      return <GemIcon className="h-24 w-24 text-muted-foreground" />;
     } else if (categoryLower.includes("vehicle") || categoryLower.includes("car")) {
       return <Car className="h-24 w-24 text-muted-foreground" />;
     } else {
       return <Box className="h-24 w-24 text-muted-foreground" />;
     }
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="auction-container py-12 flex justify-center items-center min-h-[60vh]">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+            <p className="text-xl">Loading auction details...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!auction) {
     return (
@@ -211,7 +327,7 @@ const AuctionDetail = () => {
               {hasImages ? (
                 <Carousel className="w-full">
                   <CarouselContent>
-                    {auction.images.map((image, i) => (
+                    {auction.images.map((image: string, i: number) => (
                       <CarouselItem key={i}>
                         <div className="relative rounded-lg overflow-hidden bg-muted h-[400px] md:h-[500px]">
                           <img
@@ -238,7 +354,7 @@ const AuctionDetail = () => {
               )}
               {hasImages && (
                 <div className="flex mt-4 gap-2 overflow-x-auto pb-2">
-                  {auction.images.map((image, index) => (
+                  {auction.images.map((image: string, index: number) => (
                     <div
                       key={index}
                       className="relative min-w-[80px] h-20 rounded-md overflow-hidden border-2 border-muted"
@@ -319,7 +435,7 @@ const AuctionDetail = () => {
                       <Truck className="h-5 w-5" /> Shipping Options
                     </h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
-                      {auction.shippingOptions.map((option, index) => (
+                      {auction.shippingOptions.map((option: string, index: number) => (
                         <li key={index}>{option}</li>
                       ))}
                     </ul>
@@ -329,7 +445,7 @@ const AuctionDetail = () => {
                       <Banknote className="h-5 w-5" /> Payment Methods
                     </h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
-                      {auction.paymentMethods.map((method, index) => (
+                      {auction.paymentMethods.map((method: string, index: number) => (
                         <li key={index}>{method}</li>
                       ))}
                     </ul>
@@ -395,7 +511,7 @@ const AuctionDetail = () => {
 
             {/* Bid History */}
             <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Bid History ({auction.bids} bids)</h3>
+              <h3 className="text-lg font-semibold mb-4">Bid History ({auction.bids || bidHistory.length} bids)</h3>
               <div className="border rounded-md overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -406,13 +522,19 @@ const AuctionDetail = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {auction.bidHistory.map((bid, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{bid.bidder}</TableCell>
-                        <TableCell>{formatPriceDisplay(bid.amount)}</TableCell>
-                        <TableCell>{bid.time}</TableCell>
+                    {bidHistory.length > 0 ? (
+                      bidHistory.map((bid: any, index: number) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{bid.bidderName || bid.bidder}</TableCell>
+                          <TableCell>{formatPriceDisplay(bid.bidAmount || bid.amount)}</TableCell>
+                          <TableCell>{bid.time}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center py-4">No bids yet. Be the first to bid!</TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -451,7 +573,7 @@ const AuctionDetail = () => {
 
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Starting Bid: {formatPriceDisplay(auction.startingBid)}</span>
-                    <span>{auction.bids} bids</span>
+                    <span>{auction.bids || bidHistory.length} bids</span>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm">
@@ -487,9 +609,26 @@ const AuctionDetail = () => {
                       Enter {formatPriceDisplay(auction.nextMinimumBid)} or more
                     </p>
                   </div>
-                  <Button className="w-full" size="lg" onClick={handlePlaceBid}>
-                    Place Bid
+                  <Button 
+                    className="w-full" 
+                    size="lg" 
+                    onClick={handlePlaceBid}
+                    disabled={isPlacingBid || !currentUser}
+                  >
+                    {isPlacingBid ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      "Place Bid"
+                    )}
                   </Button>
+                  {!currentUser && (
+                    <p className="text-xs text-center text-muted-foreground">
+                      <a href="/login" className="text-primary hover:underline">Login</a> or <a href="/signup" className="text-primary hover:underline">create an account</a> to place a bid
+                    </p>
+                  )}
 
                   <div className="flex gap-2 pt-2">
                     <Button

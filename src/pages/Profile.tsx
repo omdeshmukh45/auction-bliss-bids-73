@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -25,70 +26,141 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatPriceDisplay } from "@/utils/currency";
 import { useToast } from "@/hooks/use-toast";
-
-// Mock data for demonstration
-const userProfile = {
-  name: "John Doe",
-  email: "john.doe@example.com",
-  phone: "+1 (555) 123-4567",
-  address: "123 Auction Lane, Bidding City, BC 12345",
-  avatar: "",
-  joinDate: "January 2023",
-};
-
-const bidHistory = [
-  {
-    id: "bid1",
-    itemId: "auction1",
-    itemTitle: "Vintage Rolex Submariner Watch 1968",
-    bidAmount: 12500,
-    date: "2023-06-15",
-    status: "winning", // winning, outbid, won, lost
-  },
-  {
-    id: "bid2",
-    itemId: "auction3",
-    itemTitle: "First Edition Signed Harry Potter Collection",
-    bidAmount: 8500,
-    date: "2023-06-10",
-    status: "outbid",
-  },
-  {
-    id: "bid3",
-    itemId: "auction5",
-    itemTitle: "Limited Edition Nike Air Jordan 1985",
-    bidAmount: 9500,
-    date: "2023-05-25",
-    status: "won",
-  },
-  {
-    id: "bid4",
-    itemId: "auction7",
-    itemTitle: "Autographed Michael Jordan Jersey",
-    bidAmount: 14800,
-    date: "2023-05-20",
-    status: "lost",
-  },
-];
-
-const wonItems = bidHistory.filter(bid => bid.status === "won" || bid.status === "winning");
+import { useAuth } from "@/context/AuthContext";
+import { updateUserProfile, logoutUser } from "@/services/authService";
+import { getUserBidHistory, getUserWonItems, listenToUserBids } from "@/services/bidService";
+import { Loader2 } from "lucide-react";
 
 const Profile = () => {
   const { toast } = useToast();
-  const [formData, setFormData] = useState({ ...userProfile });
+  const navigate = useNavigate();
+  const { currentUser, userProfile, isLoading, refreshUserProfile } = useAuth();
+  
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    avatar: "",
+  });
+  
+  const [bidHistory, setBidHistory] = useState<any[]>([]);
+  const [wonItems, setWonItems] = useState<any[]>([]);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isFetchingBids, setIsFetchingBids] = useState(false);
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!isLoading && !currentUser) {
+      navigate('/login');
+    }
+  }, [currentUser, isLoading, navigate]);
+
+  // Update form data when user profile changes
+  useEffect(() => {
+    if (userProfile) {
+      setFormData({
+        name: userProfile.name || "",
+        email: userProfile.email || "",
+        phone: userProfile.phone || "",
+        address: userProfile.address || "",
+        avatar: userProfile.avatar || "",
+      });
+    }
+  }, [userProfile]);
+
+  // Subscribe to bid history changes
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const unsubscribe = listenToUserBids((bids) => {
+      setBidHistory(bids);
+      
+      // Filter won items
+      const won = bids.filter(bid => 
+        bid.status === "won" || bid.status === "winning"
+      );
+      setWonItems(won);
+    });
+    
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Initial fetch of bid history
+  useEffect(() => {
+    const fetchBidHistory = async () => {
+      if (!currentUser) return;
+      
+      setIsFetchingBids(true);
+      try {
+        const bids = await getUserBidHistory();
+        setBidHistory(bids);
+        
+        const won = await getUserWonItems();
+        setWonItems(won);
+      } catch (error) {
+        console.error("Error fetching bid history:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load your bid history. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsFetchingBids(false);
+      }
+    };
+    
+    fetchBidHistory();
+  }, [currentUser, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would save to a database
-    toast({
-      title: "Profile updated",
-      description: "Your profile information has been updated successfully."
-    });
+    
+    setIsUpdatingProfile(true);
+    try {
+      await updateUserProfile({
+        name: formData.name,
+        phone: formData.phone,
+        address: formData.address,
+      });
+      
+      await refreshUserProfile();
+      
+      toast({
+        title: "Profile updated",
+        description: "Your profile information has been updated successfully."
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error updating profile",
+        description: error.message || "An error occurred while updating your profile.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out."
+      });
+      navigate('/login');
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getBidStatusBadge = (status: string) => {
@@ -106,10 +178,32 @@ const Profile = () => {
     }
   };
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="auction-container py-8 flex justify-center items-center min-h-[60vh]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p>Loading profile...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!currentUser || !userProfile) {
+    return null; // Will redirect via useEffect
+  }
+
   return (
     <Layout>
       <div className="auction-container py-8">
-        <h1 className="auction-heading mb-8">My Profile</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="auction-heading">My Profile</h1>
+          <Button variant="outline" onClick={handleLogout}>
+            Logout
+          </Button>
+        </div>
 
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className="mb-8">
@@ -164,7 +258,9 @@ const Profile = () => {
                           type="email"
                           value={formData.email}
                           onChange={handleInputChange}
+                          disabled
                         />
+                        <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number</Label>
@@ -189,7 +285,16 @@ const Profile = () => {
                     </div>
 
                     <div className="flex justify-end">
-                      <Button type="submit">Save Changes</Button>
+                      <Button type="submit" disabled={isUpdatingProfile}>
+                        {isUpdatingProfile ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Changes"
+                        )}
+                      </Button>
                     </div>
                   </form>
                 </CardContent>
@@ -206,42 +311,57 @@ const Profile = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Bid Amount</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {bidHistory.map((bid) => (
-                        <TableRow key={bid.id}>
-                          <TableCell className="font-medium">
-                            {bid.itemTitle}
-                          </TableCell>
-                          <TableCell>
-                            {formatPriceDisplay(bid.bidAmount)}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(bid.date).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            {getBidStatusBadge(bid.status)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={`/auction/${bid.itemId}`}>View Item</a>
-                            </Button>
-                          </TableCell>
+                {isFetchingBids ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p>Loading your bid history...</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Bid Amount</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {bidHistory.length > 0 ? (
+                          bidHistory.map((bid) => (
+                            <TableRow key={bid.id}>
+                              <TableCell className="font-medium">
+                                {bid.itemTitle}
+                              </TableCell>
+                              <TableCell>
+                                {formatPriceDisplay(bid.bidAmount)}
+                              </TableCell>
+                              <TableCell>
+                                {new Date(bid.date).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>
+                                {getBidStatusBadge(bid.status)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={`/auction/${bid.auctionId}`}>View Item</a>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                              You haven't placed any bids yet.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -255,46 +375,53 @@ const Profile = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Winning Bid</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {wonItems.length > 0 ? (
-                        wonItems.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-medium">
-                              {item.itemTitle}
-                            </TableCell>
-                            <TableCell>
-                              {formatPriceDisplay(item.bidAmount)}
-                            </TableCell>
-                            <TableCell>
-                              {new Date(item.date).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={`/auction/${item.itemId}`}>View Item</a>
-                              </Button>
+                {isFetchingBids ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p>Loading your won items...</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Winning Bid</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {wonItems.length > 0 ? (
+                          wonItems.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium">
+                                {item.itemTitle}
+                              </TableCell>
+                              <TableCell>
+                                {formatPriceDisplay(item.bidAmount)}
+                              </TableCell>
+                              <TableCell>
+                                {new Date(item.date).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={`/auction/${item.auctionId}`}>View Item</a>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                              You haven't won any items yet. Keep bidding!
                             </TableCell>
                           </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
-                            You haven't won any items yet. Keep bidding!
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
