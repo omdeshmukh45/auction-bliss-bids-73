@@ -5,6 +5,9 @@ export interface UserProfile {
   email: string;
   avatar?: string;
   joined: string;
+  phone?: string;
+  address?: string;
+  joinDate?: string; // Added for backward compatibility
 }
 
 // Mock user profile for demo purposes
@@ -13,7 +16,10 @@ const MOCK_USER_PROFILE: UserProfile = {
   name: "John Doe",
   email: "john.doe@example.com",
   avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-  joined: "January 2023"
+  joined: "January 2023",
+  joinDate: "January 2023", // For backward compatibility
+  phone: "555-123-4567",
+  address: "123 Main St, Anytown, USA"
 };
 
 // Mock authentication check
@@ -62,6 +68,20 @@ export async function logoutUser(): Promise<void> {
 export async function getCurrentUserProfile(): Promise<UserProfile> {
   // In a real app, this would fetch from API
   return MOCK_USER_PROFILE;
+}
+
+// Update user profile
+export async function updateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
+  // In a real app, this would update the profile via API
+  const updatedProfile = {
+    ...MOCK_USER_PROFILE,
+    ...profileData
+  };
+  
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  return updatedProfile;
 }
 
 // Mock auth state listener

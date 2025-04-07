@@ -11,6 +11,16 @@ interface AuctionUpdate {
   bidHistory?: any[];
 }
 
+// Mock bid history item
+interface BidHistoryItem {
+  id: string;
+  itemTitle: string;
+  auctionId: string;
+  bidAmount: number;
+  date: string;
+  status: "winning" | "outbid" | "won" | "lost";
+}
+
 // Mock place bid function
 export async function placeBid(
   auctionId: string,
@@ -73,5 +83,88 @@ export function listenToAuctionChanges(
   
   return () => {
     window.removeEventListener('storage', handleStorageChange);
+  };
+}
+
+// Mock bid history data
+const MOCK_BID_HISTORY: BidHistoryItem[] = [
+  {
+    id: "bid-1",
+    itemTitle: "Vintage Watch",
+    auctionId: "auction-1",
+    bidAmount: 1200,
+    date: "2023-04-01T14:22:00Z",
+    status: "winning"
+  },
+  {
+    id: "bid-2",
+    itemTitle: "Antique Vase",
+    auctionId: "auction-2",
+    bidAmount: 850,
+    date: "2023-03-28T09:15:00Z",
+    status: "outbid"
+  },
+  {
+    id: "bid-3",
+    itemTitle: "Classic Car Model",
+    auctionId: "auction-3",
+    bidAmount: 3500,
+    date: "2023-03-25T16:30:00Z",
+    status: "won"
+  },
+  {
+    id: "bid-4",
+    itemTitle: "Rare Coin Collection",
+    auctionId: "auction-4",
+    bidAmount: 5000,
+    date: "2023-03-20T11:45:00Z",
+    status: "lost"
+  }
+];
+
+// Mock won items data
+const MOCK_WON_ITEMS: BidHistoryItem[] = MOCK_BID_HISTORY.filter(
+  bid => bid.status === "won" || bid.status === "winning"
+);
+
+// Get user's bid history
+export async function getUserBidHistory(): Promise<BidHistoryItem[]> {
+  if (!isAuthenticated()) {
+    throw new Error("User must be authenticated to get bid history");
+  }
+  
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  return MOCK_BID_HISTORY;
+}
+
+// Get user's won items
+export async function getUserWonItems(): Promise<BidHistoryItem[]> {
+  if (!isAuthenticated()) {
+    throw new Error("User must be authenticated to get won items");
+  }
+  
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  return MOCK_WON_ITEMS;
+}
+
+// Listen to user's bids (real-time updates)
+export function listenToUserBids(callback: (bids: BidHistoryItem[]) => void): () => void {
+  // Call callback immediately with initial data
+  callback(MOCK_BID_HISTORY);
+  
+  // In a real app, this would set up a listener for bid updates
+  // For demo, we'll just simulate updates periodically
+  const interval = setInterval(() => {
+    // No updates in demo, just return the same data
+    callback(MOCK_BID_HISTORY);
+  }, 30000); // Check every 30 seconds
+  
+  // Return cleanup function
+  return () => {
+    clearInterval(interval);
   };
 }
