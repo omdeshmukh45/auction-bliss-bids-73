@@ -1,7 +1,7 @@
 
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -17,5 +17,17 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Check if we're in development mode and use emulators
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
+  console.log("Using Firebase emulators for development");
+  // Uncomment these lines if you're using Firebase emulators locally
+  // connectAuthEmulator(auth, "http://localhost:9099");
+  // connectFirestoreEmulator(db, "localhost", 8080);
+}
+
+// Log Firebase initialization
+console.log("Firebase initialized with project:", firebaseConfig.projectId);
+console.log("Authentication domain:", firebaseConfig.authDomain);
 
 export default app;

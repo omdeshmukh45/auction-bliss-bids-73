@@ -81,7 +81,7 @@ export const placeBid = async (
   // Add the bid to the bids collection
   const bidRef = await addDoc(collection(db, "bids"), newBid);
   
-  // Update the auction with the new highest bid
+  // Update the auction with the new highest bid and increment bid count
   await updateDoc(auctionRef, {
     currentBid: bidAmount,
     nextMinimumBid: bidAmount + Math.ceil(bidAmount * 0.02), // 2% increment for next bid
@@ -165,6 +165,9 @@ export const listenToAuctionChanges = (
           ...snapshot.data() as Omit<Auction, 'id'>
         });
       }
+    },
+    (error) => {
+      console.error("Error listening to auction changes:", error);
     }
   );
 };
@@ -194,6 +197,35 @@ export const listenToUserBids = (
         ...doc.data() as Omit<Bid, 'id'>
       }));
       callback(bids);
+    },
+    (error) => {
+      console.error("Error listening to user bids:", error);
+    }
+  );
+};
+
+// Listen to all bids for a specific auction
+export const listenToAuctionBids = (
+  auctionId: string,
+  callback: (bids: Bid[]) => void
+) => {
+  const bidsQuery = query(
+    collection(db, "bids"),
+    where("auctionId", "==", auctionId),
+    orderBy("timestamp", "desc")
+  );
+  
+  return onSnapshot(
+    bidsQuery,
+    (snapshot) => {
+      const bids = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data() as Omit<Bid, 'id'>
+      }));
+      callback(bids);
+    },
+    (error) => {
+      console.error("Error listening to auction bids:", error);
     }
   );
 };

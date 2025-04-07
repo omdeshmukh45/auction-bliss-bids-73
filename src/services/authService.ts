@@ -6,7 +6,8 @@ import {
   updateProfile,
   onAuthStateChanged,
   User,
-  UserCredential
+  UserCredential,
+  AuthError
 } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
@@ -27,6 +28,10 @@ export const registerUser = async (
   password: string, 
   name: string
 ): Promise<UserCredential> => {
+  if (!email || !password || !name) {
+    throw new Error("Please provide all required information");
+  }
+  
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   
   // Update the user's profile
@@ -46,12 +51,31 @@ export const registerUser = async (
   return userCredential;
 };
 
-// Login user
+// Login user with improved error handling
 export const loginUser = async (
   email: string, 
   password: string
 ): Promise<UserCredential> => {
-  return await signInWithEmailAndPassword(auth, email, password);
+  if (!email || !password) {
+    throw new Error("Please enter email and password");
+  }
+  
+  try {
+    return await signInWithEmailAndPassword(auth, email, password);
+  } catch (error: any) {
+    // Firebase error codes for authentication
+    if (error.code === 'auth/user-not-found') {
+      throw new Error("Email not found. Please check your email or register a new account.");
+    } else if (error.code === 'auth/wrong-password') {
+      throw new Error("Incorrect password. Please try again.");
+    } else if (error.code === 'auth/invalid-credential') {
+      throw new Error("Invalid email or password. Please try again.");
+    } else if (error.code === 'auth/too-many-requests') {
+      throw new Error("Too many failed login attempts. Please try again later.");
+    } else {
+      throw new Error(error.message || "Failed to login. Please try again.");
+    }
+  }
 };
 
 // Logout user

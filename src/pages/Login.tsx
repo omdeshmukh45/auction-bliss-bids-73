@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,10 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Layout from "@/components/layout/Layout";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { loginUser, registerUser } from "@/services/authService";
 import { useAuth } from "@/context/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -28,29 +29,45 @@ const Login = () => {
     password: "", 
     confirmPassword: "" 
   });
+  const [loginError, setLoginError] = useState("");
+  const [signupError, setSignupError] = useState("");
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
+  
+  // Check for redirect path from previous location
+  const from = location.state?.from?.pathname || '/profile';
 
   // Redirect if already logged in
-  if (currentUser) {
-    navigate('/profile');
-    return null;
-  }
+  useEffect(() => {
+    if (currentUser) {
+      navigate(from, { replace: true });
+    }
+  }, [currentUser, navigate, from]);
 
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setLoginData(prev => ({ ...prev, [id.replace('login-', '')]: value }));
+    setLoginError(""); // Clear error when user changes input
   };
 
   const handleSignupChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setSignupData(prev => ({ ...prev, [id.replace('signup-', '')]: value }));
+    setSignupError(""); // Clear error when user changes input
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError("");
     setIsLoading(true);
+    
+    if (!loginData.email || !loginData.password) {
+      setLoginError("Please enter both email and password");
+      setIsLoading(false);
+      return;
+    }
     
     try {
       await loginUser(loginData.email, loginData.password);
@@ -60,13 +77,10 @@ const Login = () => {
         description: "Welcome back to AuctionBliss!",
       });
       
-      navigate('/profile');
+      navigate(from, { replace: true });
     } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message || "Please check your credentials and try again.",
-        variant: "destructive",
-      });
+      console.error("Login error:", error);
+      setLoginError(error.message || "Login failed. Please check your credentials and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -74,14 +88,23 @@ const Login = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSignupError("");
     setIsLoading(true);
     
+    if (!signupData.name || !signupData.email || !signupData.password) {
+      setSignupError("Please fill in all required fields");
+      setIsLoading(false);
+      return;
+    }
+    
     if (signupData.password !== signupData.confirmPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please make sure your passwords match.",
-        variant: "destructive",
-      });
+      setSignupError("Passwords don't match");
+      setIsLoading(false);
+      return;
+    }
+    
+    if (signupData.password.length < 6) {
+      setSignupError("Password must be at least 6 characters");
       setIsLoading(false);
       return;
     }
@@ -94,13 +117,15 @@ const Login = () => {
         description: "Welcome to AuctionBliss! Your account has been created.",
       });
       
-      navigate('/profile');
+      navigate(from, { replace: true });
     } catch (error: any) {
-      toast({
-        title: "Registration failed",
-        description: error.message || "There was a problem creating your account.",
-        variant: "destructive",
-      });
+      console.error("Signup error:", error);
+      
+      if (error.code === 'auth/email-already-in-use') {
+        setSignupError("This email is already registered. Please use a different email or login.");
+      } else {
+        setSignupError(error.message || "There was a problem creating your account.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -132,6 +157,12 @@ const Login = () => {
                 </CardHeader>
                 <form onSubmit={handleLogin}>
                   <CardContent className="space-y-4">
+                    {loginError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{loginError}</AlertDescription>
+                      </Alert>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="login-email">Email</Label>
                       <Input 
@@ -161,7 +192,12 @@ const Login = () => {
                   </CardContent>
                   <CardFooter>
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? "Logging in..." : "Login"}
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Logging in...
+                        </>
+                      ) : "Login"}
                     </Button>
                   </CardFooter>
                 </form>
@@ -178,6 +214,12 @@ const Login = () => {
                 </CardHeader>
                 <form onSubmit={handleSignup}>
                   <CardContent className="space-y-4">
+                    {signupError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{signupError}</AlertDescription>
+                      </Alert>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="signup-name">Full Name</Label>
                       <Input 
@@ -207,7 +249,9 @@ const Login = () => {
                         required
                         value={signupData.password}
                         onChange={handleSignupChange}
+                        minLength={6}
                       />
+                      <p className="text-xs text-muted-foreground">Password must be at least 6 characters</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signup-confirmPassword">Confirm Password</Label>
@@ -222,7 +266,12 @@ const Login = () => {
                   </CardContent>
                   <CardFooter>
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? "Creating account..." : "Create Account"}
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating account...
+                        </>
+                      ) : "Create Account"}
                     </Button>
                   </CardFooter>
                 </form>
