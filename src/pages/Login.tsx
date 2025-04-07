@@ -34,17 +34,17 @@ const Login = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser } = useAuth();
+  const { isAuthenticated } = useAuth();
   
   // Check for redirect path from previous location
   const from = location.state?.from?.pathname || '/profile';
 
   // Redirect if already logged in
   useEffect(() => {
-    if (currentUser) {
+    if (isAuthenticated) {
       navigate(from, { replace: true });
     }
-  }, [currentUser, navigate, from]);
+  }, [isAuthenticated, navigate, from]);
 
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -121,7 +121,7 @@ const Login = () => {
     } catch (error: any) {
       console.error("Signup error:", error);
       
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.message.includes('email already in use') || error.message.includes('already registered')) {
         setSignupError("This email is already registered. Please use a different email or login.");
       } else {
         setSignupError(error.message || "There was a problem creating your account.");

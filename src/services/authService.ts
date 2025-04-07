@@ -1,16 +1,5 @@
 
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  updateProfile,
-  onAuthStateChanged,
-  User,
-  UserCredential,
-  AuthError
-} from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { api, isAuthenticated } from "./apiService";
 
 export interface UserProfile {
   uid: string;
@@ -27,50 +16,37 @@ export const registerUser = async (
   email: string, 
   password: string, 
   name: string
-): Promise<UserCredential> => {
+) => {
   if (!email || !password || !name) {
     throw new Error("Please provide all required information");
   }
   
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  
-  // Update the user's profile
-  await updateProfile(userCredential.user, {
-    displayName: name
-  });
-  
-  // Create a user document in Firestore
-  await setDoc(doc(db, "users", userCredential.user.uid), {
-    uid: userCredential.user.uid,
-    email: userCredential.user.email,
-    name: name,
-    joinDate: serverTimestamp(),
-    createdAt: serverTimestamp(),
-  });
-  
-  return userCredential;
+  try {
+    return await api.auth.register(name, email, password);
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to register. Please try again.");
+  }
 };
 
 // Login user with improved error handling
-export const loginUser = async (
-  email: string, 
-  password: string
-): Promise<UserCredential> => {
+export const loginUser = async (email: string, password: string) => {
   if (!email || !password) {
     throw new Error("Please enter email and password");
   }
   
   try {
-    return await signInWithEmailAndPassword(auth, email, password);
+    return await api.auth.login(email, password);
   } catch (error: any) {
-    // Firebase error codes for authentication
-    if (error.code === 'auth/user-not-found') {
+    // Map API errors to user-friendly messages
+    const errorMsg = error.message?.toLowerCase() || '';
+    
+    if (errorMsg.includes('not found') || errorMsg.includes('no user')) {
       throw new Error("Email not found. Please check your email or register a new account.");
-    } else if (error.code === 'auth/wrong-password') {
+    } else if (errorMsg.includes('incorrect password') || errorMsg.includes('wrong password')) {
       throw new Error("Incorrect password. Please try again.");
-    } else if (error.code === 'auth/invalid-credential') {
+    } else if (errorMsg.includes('invalid') && (errorMsg.includes('credential') || errorMsg.includes('email'))) {
       throw new Error("Invalid email or password. Please try again.");
-    } else if (error.code === 'auth/too-many-requests') {
+    } else if (errorMsg.includes('too many') && errorMsg.includes('attempt')) {
       throw new Error("Too many failed login attempts. Please try again later.");
     } else {
       throw new Error(error.message || "Failed to login. Please try again.");
@@ -80,61 +56,63 @@ export const loginUser = async (
 
 // Logout user
 export const logoutUser = async (): Promise<void> => {
-  return await signOut(auth);
+  await api.auth.logout();
 };
 
 // Get current user profile
 export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
-  const user = auth.currentUser;
+  if (!isAuthenticated()) return null;
   
-  if (!user) return null;
-  
-  const userDoc = await getDoc(doc(db, "users", user.uid));
-  
-  if (userDoc.exists()) {
-    const userData = userDoc.data();
+  try {
+    const userData = await api.auth.getProfile();
+    
     return {
-      uid: user.uid,
-      email: user.email,
-      name: user.displayName || userData.name,
+      uid: userData.id,
+      email: userData.email,
+      name: userData.name,
       phone: userData.phone || "",
       address: userData.address || "",
       avatar: userData.avatar || "",
-      joinDate: userData.joinDate ? new Date(userData.joinDate.toDate()).toLocaleDateString() : new Date().toLocaleDateString(),
+      joinDate: userData.joinDate || new Date().toLocaleDateString(),
     };
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return null;
   }
-  
-  return {
-    uid: user.uid,
-    email: user.email,
-    name: user.displayName,
-    joinDate: new Date().toLocaleDateString(),
-  };
 };
 
 // Update user profile
 export const updateUserProfile = async (data: Partial<UserProfile>): Promise<void> => {
-  const user = auth.currentUser;
-  
-  if (!user) throw new Error("No user logged in");
-  
-  // Update display name if provided
-  if (data.name) {
-    await updateProfile(user, {
-      displayName: data.name
-    });
+  if (!isAuthenticated()) {
+    throw new Error("No user logged in");
   }
   
-  // Update user document in Firestore
-  await setDoc(doc(db, "users", user.uid), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  try {
+    await api.auth.updateProfile(data);
+  } catch (error: any) {
+    console.error("Error updating profile:", error);
+    throw new Error(error.message || "Failed to update profile. Please try again.");
+  }
 };
 
-// Subscribe to auth state changes
+// Custom hook for checking authentication status changes
 export const subscribeToAuthChanges = (
-  callback: (user: User | null) => void
+  callback: (isLoggedIn: boolean) => void
 ) => {
-  return onAuthStateChanged(auth, callback);
+  // Initial check
+  callback(isAuthenticated());
+  
+  // Setup event listener for storage changes (for multi-tab support)
+  const handleStorageChange = (event: StorageEvent) => {
+    if (event.key === 'auth_token') {
+      callback(isAuthenticated());
+    }
+  };
+  
+  window.addEventListener('storage', handleStorageChange);
+  
+  // Return cleanup function
+  return () => {
+    window.removeEventListener('storage', handleStorageChange);
+  };
 };

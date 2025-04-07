@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -34,7 +33,7 @@ import { Loader2 } from "lucide-react";
 const Profile = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { currentUser, userProfile, isLoading, refreshUserProfile } = useAuth();
+  const { isAuthenticated, userProfile, isLoading, refreshUserProfile } = useAuth();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -51,10 +50,10 @@ const Profile = () => {
 
   // Redirect if not logged in
   useEffect(() => {
-    if (!isLoading && !currentUser) {
+    if (!isLoading && !isAuthenticated) {
       navigate('/login');
     }
-  }, [currentUser, isLoading, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
 
   // Update form data when user profile changes
   useEffect(() => {
@@ -69,9 +68,9 @@ const Profile = () => {
     }
   }, [userProfile]);
 
-  // Subscribe to bid history changes
+  // Subscribe to bid history changes using polling
   useEffect(() => {
-    if (!currentUser) return;
+    if (!isAuthenticated) return;
     
     const unsubscribe = listenToUserBids((bids) => {
       setBidHistory(bids);
@@ -84,12 +83,12 @@ const Profile = () => {
     });
     
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [isAuthenticated]);
 
   // Initial fetch of bid history
   useEffect(() => {
     const fetchBidHistory = async () => {
-      if (!currentUser) return;
+      if (!isAuthenticated) return;
       
       setIsFetchingBids(true);
       try {
@@ -111,7 +110,7 @@ const Profile = () => {
     };
     
     fetchBidHistory();
-  }, [currentUser, toast]);
+  }, [isAuthenticated, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -191,7 +190,7 @@ const Profile = () => {
     );
   }
 
-  if (!currentUser || !userProfile) {
+  if (!isAuthenticated || !userProfile) {
     return null; // Will redirect via useEffect
   }
 

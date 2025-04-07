@@ -1,18 +1,18 @@
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { User } from 'firebase/auth';
-import { subscribeToAuthChanges, getCurrentUserProfile, UserProfile } from '@/services/authService';
+import { getCurrentUserProfile, UserProfile, subscribeToAuthChanges } from '@/services/authService';
 import { Loader } from 'lucide-react';
+import { isAuthenticated } from '@/services/apiService';
 
 interface AuthContextType {
-  currentUser: User | null;
+  isAuthenticated: boolean;
   userProfile: UserProfile | null;
   isLoading: boolean;
   refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  currentUser: null,
+  isAuthenticated: false,
   userProfile: null,
   isLoading: true,
   refreshUserProfile: async () => {}
@@ -21,19 +21,19 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState<boolean>(isAuthenticated());
 
   useEffect(() => {
     console.log("Setting up auth state listener");
-    const unsubscribe = subscribeToAuthChanges(async (user) => {
-      console.log("Auth state changed:", user ? "User logged in" : "User logged out");
-      setCurrentUser(user);
+    const unsubscribe = subscribeToAuthChanges(async (loggedIn) => {
+      console.log("Auth state changed:", loggedIn ? "User logged in" : "User logged out");
+      setAuthenticated(loggedIn);
       
-      if (user) {
+      if (loggedIn) {
         try {
-          console.log("Fetching user profile for:", user.uid);
+          console.log("Fetching user profile");
           const profile = await getCurrentUserProfile();
           console.log("Profile fetched:", profile);
           setUserProfile(profile);
@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshUserProfile = async () => {
-    if (!currentUser) {
+    if (!authenticated) {
       console.log("No user logged in, cannot refresh profile");
       return;
     }
@@ -71,14 +71,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const value = {
-    currentUser,
+    isAuthenticated: authenticated,
     userProfile,
     isLoading,
     refreshUserProfile
   };
 
   console.log("Auth context state:", { 
-    isAuthenticated: !!currentUser,
+    isAuthenticated: authenticated,
     isLoading,
     hasProfile: !!userProfile
   });
