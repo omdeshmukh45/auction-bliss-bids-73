@@ -1,8 +1,9 @@
 
 import { toast } from "@/hooks/use-toast";
+import { API_CONFIG } from "@/lib/config";
 
-// API base URL - Update with your actual API endpoint
-const API_BASE_URL = "https://api.auctionbliss.com/api" || "http://localhost:3000/api";
+// API base URL - Use configuration value
+const API_BASE_URL = API_CONFIG.baseUrl;
 
 // Generic fetch function with error handling
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {

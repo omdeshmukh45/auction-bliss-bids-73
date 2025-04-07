@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -51,10 +50,8 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { doc, getDoc, onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
-// Sample auction data (in a real app, this would come from Firebase)
+// Sample auction data (in a real app, this would come from MySQL API)
 const auctionData = {
   auction1: {
     id: "auction1",
@@ -102,7 +99,7 @@ const auctionData = {
 const AuctionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { isAuthenticated, userProfile } = useAuth();
   const [bidAmount, setBidAmount] = useState("");
   const [isWatching, setIsWatching] = useState(false);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
@@ -114,57 +111,30 @@ const AuctionDetail = () => {
   useEffect(() => {
     if (!id) return;
     
-    // Try to get auction from Firebase first
+    // Fetch auction from API
     const fetchAuction = async () => {
       setIsLoading(true);
       try {
-        const auctionRef = doc(db, "auctions", id);
-        const auctionSnap = await getDoc(auctionRef);
+        // In a real app, fetch from API
+        // const response = await fetch(`/api/auctions/${id}`);
+        // const data = await response.json();
         
-        if (auctionSnap.exists()) {
-          // Real auction from Firebase
-          setAuction({
-            id: auctionSnap.id,
-            ...auctionSnap.data()
-          });
-          
-          // Set up real-time listener for bid history
-          const bidsQuery = query(
-            collection(db, "bids"),
-            orderBy("timestamp", "desc"),
-            limit(20)
-          );
-          
-          const unsubscribeBids = onSnapshot(bidsQuery, (snapshot) => {
-            const bids = snapshot.docs
-              .filter(doc => doc.data().auctionId === id)
-              .map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                time: new Date(doc.data().date).toLocaleDateString()
-              }));
-            
-            setBidHistory(bids);
-          });
-          
-          // Set up listener for auction updates (bids, etc.)
-          const unsubscribeAuction = listenToAuctionChanges(id, (updatedAuction) => {
-            setAuction(current => ({
-              ...current,
-              ...updatedAuction
-            }));
-          });
-          
-          return () => {
-            unsubscribeBids();
-            unsubscribeAuction();
-          };
-        } else {
-          // Fall back to sample data for demo
-          console.log("Auction not found in Firestore, using sample data");
-          setAuction(auctionData.auction1);
-          setBidHistory(auctionData.auction1.bidHistory);
-        }
+        // For now, use sample data
+        console.log("Fetching auction data for:", id);
+        setAuction(auctionData.auction1);
+        setBidHistory(auctionData.auction1.bidHistory);
+        
+        // Set up listener for auction updates (bids, etc.)
+        const unsubscribeAuction = listenToAuctionChanges(id, (updatedAuction) => {
+          setAuction(current => ({
+            ...current,
+            ...updatedAuction
+          }));
+        });
+        
+        return () => {
+          unsubscribeAuction();
+        };
       } catch (error) {
         console.error("Error fetching auction:", error);
         // Fall back to sample data
@@ -179,7 +149,7 @@ const AuctionDetail = () => {
   }, [id]);
 
   const handlePlaceBid = async () => {
-    if (!currentUser) {
+    if (!isAuthenticated) {
       toast({
         title: "Login required",
         description: "You must be logged in to place a bid.",
@@ -231,7 +201,7 @@ const AuctionDetail = () => {
   };
 
   const toggleWatchlist = () => {
-    if (!currentUser) {
+    if (!isAuthenticated) {
       toast({
         title: "Login required",
         description: "You must be logged in to save items.",
@@ -613,7 +583,7 @@ const AuctionDetail = () => {
                     className="w-full" 
                     size="lg" 
                     onClick={handlePlaceBid}
-                    disabled={isPlacingBid || !currentUser}
+                    disabled={isPlacingBid || !isAuthenticated}
                   >
                     {isPlacingBid ? (
                       <>
@@ -624,7 +594,7 @@ const AuctionDetail = () => {
                       "Place Bid"
                     )}
                   </Button>
-                  {!currentUser && (
+                  {!isAuthenticated && (
                     <p className="text-xs text-center text-muted-foreground">
                       <a href="/login" className="text-primary hover:underline">Login</a> or <a href="/signup" className="text-primary hover:underline">create an account</a> to place a bid
                     </p>
