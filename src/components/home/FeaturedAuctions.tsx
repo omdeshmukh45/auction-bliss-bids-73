@@ -10,7 +10,7 @@ const auctions = {
     {
       id: "auction1",
       title: "Vintage Rolex Submariner Watch 1968",
-      image: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b",
+      image: "https://www.pexels.com/photo/silver-and-gold-round-watch-3809175/",
       currentBid: 12500,
       timeLeft: "2 days, 4 hours",
       bids: 28,
