@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AuctionCard from "../auctions/AuctionCard";
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 
 // Sample auction data with improved realistic product images
 const auctions = {
@@ -119,6 +120,11 @@ const auctions = {
 };
 
 const FeaturedAuctions = () => {
+  // Add a useEffect to log when the component renders
+  useEffect(() => {
+    console.log("FeaturedAuctions component rendered:", new Date().toISOString());
+  }, []);
+
   return (
     <section className="auction-container py-12 bg-auction-light">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
