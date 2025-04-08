@@ -1,20 +1,42 @@
 
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Search, Menu, ShoppingBag, LogIn, Bell, User, Heart } from "lucide-react";
+import { Search, Menu, ShoppingBag, LogIn, Bell, User, Heart, Package } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { logoutUser } from "@/services/authService";
+import { useToast } from "@/hooks/use-toast";
 
 const Header = () => {
-  const [isLoggedIn] = useState(true); // Setting to true for now to show user profile and cart options
+  const { isAuthenticated, userProfile, isLoading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const isActive = (path: string) => {
     return location.pathname === path;
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out."
+      });
+      navigate('/login');
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -46,14 +68,20 @@ const Header = () => {
                 <Link to="/contact" className="text-lg font-semibold hover:text-primary">
                   Contact
                 </Link>
-                {isLoggedIn && (
+                {isAuthenticated && (
                   <>
                     <Link to="/profile" className="text-lg font-semibold hover:text-primary">
                       My Profile
                     </Link>
+                    <Link to="/products" className="text-lg font-semibold hover:text-primary">
+                      My Products
+                    </Link>
                     <Link to="/cart" className="text-lg font-semibold hover:text-primary">
                       Saved Items
                     </Link>
+                    <Button variant="ghost" onClick={handleLogout} className="justify-start px-0">
+                      Logout
+                    </Button>
                   </>
                 )}
               </nav>
@@ -99,6 +127,14 @@ const Header = () => {
           >
             Contact
           </Link>
+          {isAuthenticated && (
+            <Link 
+              to="/products" 
+              className={`text-sm font-medium ${isActive('/products') ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              My Products
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -107,12 +143,18 @@ const Header = () => {
             <span className="sr-only">Search</span>
           </Button>
           
-          {isLoggedIn ? (
+          {isAuthenticated ? (
             <>
               <Button variant="ghost" size="icon">
                 <Bell className="h-5 w-5" />
                 <span className="sr-only">Notifications</span>
               </Button>
+              <Link to="/products">
+                <Button variant="ghost" size="icon">
+                  <Package className="h-5 w-5" />
+                  <span className="sr-only">My Products</span>
+                </Button>
+              </Link>
               <Link to="/cart">
                 <Button variant="ghost" size="icon">
                   <Heart className="h-5 w-5" />
@@ -121,9 +163,25 @@ const Header = () => {
               </Link>
               <Link to="/profile">
                 <Button variant="outline" className="hidden md:inline-flex gap-2">
-                  <User className="h-4 w-4" /> My Profile
+                  <User className="h-4 w-4" /> {userProfile?.name?.split(' ')[0] || 'My Profile'}
                 </Button>
               </Link>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="md:hidden"
+                onClick={handleLogout}
+              >
+                <User className="h-5 w-5" />
+                <span className="sr-only">Logout</span>
+              </Button>
+              <Button 
+                variant="default" 
+                className="hidden md:inline-flex ml-2"
+                onClick={handleLogout}
+              >
+                Logout
+              </Button>
             </>
           ) : (
             <Link to="/login">

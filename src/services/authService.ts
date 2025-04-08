@@ -1,103 +1,136 @@
 
+import { supabase } from "@/integrations/supabase/client";
+import { Session, User } from "@supabase/supabase-js";
+
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  role?: string;
   avatar?: string;
-  joined: string;
+  joined?: string;
   phone?: string;
   address?: string;
-  joinDate?: string; // Added for backward compatibility
+  joinDate?: string; // For backward compatibility
 }
 
-// Mock user profile for demo purposes
-const MOCK_USER_PROFILE: UserProfile = {
-  id: "user-123",
-  name: "John Doe",
-  email: "john.doe@example.com",
-  avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-  joined: "January 2023",
-  joinDate: "January 2023", // For backward compatibility
-  phone: "555-123-4567",
-  address: "123 Main St, Anytown, USA"
-};
+// Sign up a new user
+export async function registerUser(name: string, email: string, password: string, role: 'farmer' | 'vendor'): Promise<{ success: boolean; message?: string; user?: User }> {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role
+        }
+      }
+    });
 
-// Mock authentication check
-export function isAuthenticated(): boolean {
-  const authToken = localStorage.getItem('auction_auth_token');
-  return !!authToken;
-}
+    if (error) {
+      console.error("Sign up error:", error.message);
+      return { success: false, message: error.message };
+    }
 
-// Mock login function
-export async function loginUser(email: string, password: string): Promise<{ success: boolean; message?: string }> {
-  // For demo, accept any email with a password longer than 5 chars
-  if (password.length < 6) {
-    return { success: false, message: "Password must be at least 6 characters" };
+    return { success: true, user: data.user || undefined };
+  } catch (error: any) {
+    console.error("Unexpected sign up error:", error.message);
+    return { success: false, message: "An unexpected error occurred during sign up" };
   }
-  
-  // Set mock auth token
-  localStorage.setItem('auction_auth_token', 'mock-jwt-token');
-  localStorage.setItem('auction_user_email', email);
-  
-  return { success: true };
 }
 
-// Mock signup function
-export async function registerUser(name: string, email: string, password: string): Promise<{ success: boolean; message?: string }> {
-  // For demo, accept any email with a password longer than 5 chars
-  if (password.length < 6) {
-    return { success: false, message: "Password must be at least 6 characters" };
+// Log in an existing user
+export async function loginUser(email: string, password: string): Promise<{ success: boolean; message?: string; session?: Session }> {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      console.error("Login error:", error.message);
+      return { success: false, message: error.message };
+    }
+
+    return { success: true, session: data.session };
+  } catch (error: any) {
+    console.error("Unexpected login error:", error.message);
+    return { success: false, message: "An unexpected error occurred during login" };
   }
-  
-  // Set mock auth token
-  localStorage.setItem('auction_auth_token', 'mock-jwt-token');
-  localStorage.setItem('auction_user_email', email);
-  localStorage.setItem('auction_user_name', name);
-  
-  return { success: true };
 }
 
-// Mock logout function
+// Log out the current user
 export async function logoutUser(): Promise<void> {
-  localStorage.removeItem('auction_auth_token');
-  localStorage.removeItem('auction_user_email');
-  localStorage.removeItem('auction_user_name');
+  await supabase.auth.signOut();
 }
 
-// Get current user profile
-export async function getCurrentUserProfile(): Promise<UserProfile> {
-  // In a real app, this would fetch from API
-  return MOCK_USER_PROFILE;
+// Get the current user profile
+export async function getCurrentUserProfile(): Promise<UserProfile | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) return null;
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+  
+  if (!profile) return null;
+  
+  // Convert to UserProfile format
+  return {
+    id: profile.id,
+    name: profile.name || '',
+    email: profile.email || '',
+    role: profile.role,
+    joined: new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    joinDate: new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  };
 }
 
 // Update user profile
 export async function updateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
-  // In a real app, this would update the profile via API
-  const updatedProfile = {
-    ...MOCK_USER_PROFILE,
-    ...profileData
-  };
+  const { data: { user } } = await supabase.auth.getUser();
   
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800));
+  if (!user) {
+    throw new Error("No authenticated user found");
+  }
   
-  return updatedProfile;
+  // Don't update id, email, or joinDate fields
+  const { id, email, joinDate, joined, ...updateData } = profileData;
+  
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updateData)
+    .eq('id', user.id)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error("Error updating profile:", error);
+    throw new Error(error.message);
+  }
+  
+  // Return the updated profile in the expected format
+  return await getCurrentUserProfile() as UserProfile;
 }
 
-// Mock auth state listener
+// Subscribe to auth state changes
 export function subscribeToAuthChanges(callback: (isLoggedIn: boolean) => void): () => void {
-  // Call the callback with the current auth state
-  callback(isAuthenticated());
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const isLoggedIn = !!session;
+    callback(isLoggedIn);
+  });
   
-  // Set up event listener for storage changes (logout/login from other tabs)
-  const storageListener = () => {
-    callback(isAuthenticated());
-  };
-  
-  window.addEventListener('storage', storageListener);
-  
-  // Return unsubscribe function
   return () => {
-    window.removeEventListener('storage', storageListener);
+    subscription.unsubscribe();
   };
+}
+
+// Check if user is authenticated
+export async function isUserAuthenticated(): Promise<boolean> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return !!session;
 }

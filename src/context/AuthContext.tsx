@@ -2,7 +2,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { getCurrentUserProfile, UserProfile, subscribeToAuthChanges } from '@/services/authService';
 import { Loader } from 'lucide-react';
-import { isAuthenticated } from '@/services/apiService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -23,10 +23,30 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState<boolean>(isAuthenticated());
+  const [authenticated, setAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
     console.log("Setting up auth state listener");
+    
+    // First check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const isLoggedIn = !!session;
+      setAuthenticated(isLoggedIn);
+      
+      if (isLoggedIn) {
+        getCurrentUserProfile().then(profile => {
+          setUserProfile(profile);
+          setIsLoading(false);
+        }).catch(error => {
+          console.error("Error fetching initial user profile:", error);
+          setIsLoading(false);
+        });
+      } else {
+        setIsLoading(false);
+      }
+    });
+    
+    // Then subscribe to auth changes
     const unsubscribe = subscribeToAuthChanges(async (loggedIn) => {
       console.log("Auth state changed:", loggedIn ? "User logged in" : "User logged out");
       setAuthenticated(loggedIn);
@@ -44,8 +64,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUserProfile(null);
       }
-      
-      setIsLoading(false);
     });
 
     return () => {
