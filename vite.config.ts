@@ -1,3 +1,4 @@
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -8,9 +9,18 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    hmr: {
+      overlay: true, // Show error overlay
+      clientPort: 8080, // Ensure the client port matches server port
+    },
   },
   plugins: [
-    react(),
+    react({
+      // Improved configuration for hot reload
+      plugins: [
+        ['@swc/plugin-react-refresh', {}] 
+      ]
+    }),
     mode === 'development' &&
     componentTagger(),
   ].filter(Boolean),
@@ -18,5 +28,9 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  // Add better error reporting
+  build: {
+    sourcemap: true,
   },
 }));

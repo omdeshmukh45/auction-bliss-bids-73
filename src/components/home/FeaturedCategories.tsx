@@ -6,25 +6,25 @@ const categories = [
   {
     id: "electronics",
     name: "Electronics",
-    image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085",
+    image: "https://images.unsplash.com/photo-1550009158-9ebf69173e03?q=80&w=2801&auto=format&fit=crop",
     count: 152,
   },
   {
     id: "jewelry",
     name: "Jewelry & Watches",
-    image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338",
+    image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=2187&auto=format&fit=crop",
     count: 76,
   },
   {
     id: "art",
     name: "Art & Collectibles",
-    image: "https://images.unsplash.com/photo-1579783928621-7a13d66a62d1",
+    image: "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=2145&auto=format&fit=crop",
     count: 98,
   },
   {
     id: "fashion",
     name: "Fashion",
-    image: "https://images.unsplash.com/photo-1445205170230-053b83016050",
+    image: "https://images.unsplash.com/photo-1540221652346-e5dd6b50f3e7?q=80&w=2069&auto=format&fit=crop",
     count: 143,
   },
 ];

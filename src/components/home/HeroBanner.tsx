@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 const HeroBanner = () => {
   return (
     <div className="relative bg-auction-dark text-white">
-      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1605810230434-7631ac76ec81')] bg-cover bg-center opacity-20"></div>
+      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1566647387313-9fda80664848?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-20"></div>
       <div className="auction-container relative z-10 py-20 md:py-32">
         <div className="max-w-xl">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
