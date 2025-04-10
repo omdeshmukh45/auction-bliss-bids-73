@@ -9,6 +9,128 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      auctions: {
+        Row: {
+          authenticity: string | null
+          bids_count: number | null
+          category: string | null
+          condition: string | null
+          created_at: string | null
+          current_bid: number
+          description: string | null
+          end_time: string
+          id: string
+          image_urls: string[]
+          location: string | null
+          min_bid_increment: number
+          returns_accepted: boolean | null
+          seller_id: string | null
+          seller_image: string | null
+          seller_joined_date: string | null
+          seller_name: string | null
+          seller_rating: number | null
+          seller_total_sales: number | null
+          shipping_cost: number | null
+          specifications: Json | null
+          starting_bid: number
+          status: string | null
+          title: string
+          watch_count: number | null
+          year: number | null
+        }
+        Insert: {
+          authenticity?: string | null
+          bids_count?: number | null
+          category?: string | null
+          condition?: string | null
+          created_at?: string | null
+          current_bid: number
+          description?: string | null
+          end_time: string
+          id?: string
+          image_urls: string[]
+          location?: string | null
+          min_bid_increment: number
+          returns_accepted?: boolean | null
+          seller_id?: string | null
+          seller_image?: string | null
+          seller_joined_date?: string | null
+          seller_name?: string | null
+          seller_rating?: number | null
+          seller_total_sales?: number | null
+          shipping_cost?: number | null
+          specifications?: Json | null
+          starting_bid: number
+          status?: string | null
+          title: string
+          watch_count?: number | null
+          year?: number | null
+        }
+        Update: {
+          authenticity?: string | null
+          bids_count?: number | null
+          category?: string | null
+          condition?: string | null
+          created_at?: string | null
+          current_bid?: number
+          description?: string | null
+          end_time?: string
+          id?: string
+          image_urls?: string[]
+          location?: string | null
+          min_bid_increment?: number
+          returns_accepted?: boolean | null
+          seller_id?: string | null
+          seller_image?: string | null
+          seller_joined_date?: string | null
+          seller_name?: string | null
+          seller_rating?: number | null
+          seller_total_sales?: number | null
+          shipping_cost?: number | null
+          specifications?: Json | null
+          starting_bid?: number
+          status?: string | null
+          title?: string
+          watch_count?: number | null
+          year?: number | null
+        }
+        Relationships: []
+      }
+      bids: {
+        Row: {
+          amount: number
+          auction_id: string
+          bidder_id: string
+          bidder_name: string
+          id: string
+          time: string | null
+        }
+        Insert: {
+          amount: number
+          auction_id: string
+          bidder_id: string
+          bidder_name: string
+          id?: string
+          time?: string | null
+        }
+        Update: {
+          amount?: number
+          auction_id?: string
+          bidder_id?: string
+          bidder_name?: string
+          id?: string
+          time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bids_auction_id_fkey"
+            columns: ["auction_id"]
+            isOneToOne: false
+            referencedRelation: "auctions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           created_at: string | null
@@ -62,6 +184,35 @@ export type Database = {
           role?: string | null
         }
         Relationships: []
+      }
+      watchlist: {
+        Row: {
+          auction_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          auction_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          auction_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_auction_id_fkey"
+            columns: ["auction_id"]
+            isOneToOne: false
+            referencedRelation: "auctions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

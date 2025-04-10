@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
+import { Database } from "@/integrations/supabase/types";
 
 export interface UserProfile {
   id: string;
@@ -15,7 +16,7 @@ export interface UserProfile {
 }
 
 // Sign up a new user
-export async function registerUser(name: string, email: string, password: string, role: 'farmer' | 'vendor'): Promise<{ success: boolean; message?: string; user?: User }> {
+export async function registerUser(name: string, email: string, password: string, role: 'farmer' | 'vendor' = 'vendor'): Promise<{ success: boolean; message?: string; user?: User }> {
   try {
     const { data, error } = await supabase.auth.signUp({
       email,

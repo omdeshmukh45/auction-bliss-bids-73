@@ -32,6 +32,7 @@ const Login = () => {
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
+  const [role, setRole] = useState<'farmer' | 'vendor'>('vendor');
 
   // Handle login submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -113,7 +114,7 @@ const Login = () => {
     setIsSigningUp(true);
     
     try {
-      const result = await registerUser(signupName, signupEmail, signupPassword);
+      const result = await registerUser(signupName, signupEmail, signupPassword, role);
       
       if (result.success) {
         toast({
@@ -246,6 +247,36 @@ const Login = () => {
                     onChange={(e) => setSignupEmail(e.target.value)}
                     required
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">Account Type</Label>
+                  <div className="flex space-x-4">
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="vendor"
+                        name="role"
+                        value="vendor"
+                        checked={role === 'vendor'}
+                        onChange={() => setRole('vendor')}
+                        className="mr-2"
+                      />
+                      <Label htmlFor="vendor">Vendor</Label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="farmer"
+                        name="role"
+                        value="farmer"
+                        checked={role === 'farmer'}
+                        onChange={() => setRole('farmer')}
+                        className="mr-2"
+                      />
+                      <Label htmlFor="farmer">Farmer</Label>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
