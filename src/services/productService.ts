@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Product {
@@ -93,23 +94,33 @@ export async function getProductById(id: string): Promise<Product | null> {
   }
 }
 
-// Create a new product
-export async function createProduct(product: {
-  owner_id?: string;
+// Create a new product with audit logging
+export async function createProduct(productData: {
   title: string;
   description: string;
   price: number;
   image_url?: string;
+  owner_id?: string;
 }): Promise<Product> {
   try {
     // Get the current user if owner_id is not provided
-    if (!product.owner_id) {
+    let owner_id = productData.owner_id;
+    if (!owner_id) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("User not authenticated");
       }
-      product.owner_id = user.id;
+      owner_id = user.id;
     }
+    
+    // Create a proper product object with required owner_id
+    const product = {
+      title: productData.title,
+      description: productData.description,
+      price: productData.price,
+      image_url: productData.image_url,
+      owner_id: owner_id
+    };
     
     const { data, error } = await supabase
       .from('products')
@@ -122,6 +133,25 @@ export async function createProduct(product: {
       throw new Error(error.message);
     }
     
+    // Log the product creation
+    try {
+      await supabase
+        .from('activity_logs')
+        .insert({
+          user_id: owner_id,
+          activity_type: 'product_created',
+          resource_id: data.id,
+          resource_type: 'product',
+          details: {
+            title: data.title,
+            price: data.price
+          }
+        });
+    } catch (logError) {
+      console.error("Error logging product creation:", logError);
+      // Don't throw here as the product was created successfully
+    }
+    
     return data;
   } catch (error) {
     console.error("Error in createProduct:", error);
@@ -129,9 +159,16 @@ export async function createProduct(product: {
   }
 }
 
-// Update a product
+// Update a product with audit logging
 export async function updateProduct(id: string, updates: Partial<Omit<Product, "id" | "created_at" | "owner_id">>): Promise<Product> {
   try {
+    // Get current product data for comparison
+    const { data: currentProduct } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
     const { data, error } = await supabase
       .from('products')
       .update(updates)
@@ -144,6 +181,35 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
       throw new Error(error.message);
     }
     
+    // Log the product update with changes
+    try {
+      const changes: Record<string, { old: any, new: any }> = {};
+      for (const key in updates) {
+        if (updates[key] !== currentProduct[key]) {
+          changes[key] = {
+            old: currentProduct[key],
+            new: updates[key]
+          };
+        }
+      }
+      
+      // Only log if there were actual changes
+      if (Object.keys(changes).length > 0) {
+        await supabase
+          .from('activity_logs')
+          .insert({
+            user_id: currentProduct.owner_id,
+            activity_type: 'product_updated',
+            resource_id: id,
+            resource_type: 'product',
+            details: { changes }
+          });
+      }
+    } catch (logError) {
+      console.error("Error logging product update:", logError);
+      // Don't throw here as the product was updated successfully
+    }
+    
     return data;
   } catch (error) {
     console.error("Error in updateProduct:", error);
@@ -151,9 +217,16 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
   }
 }
 
-// Delete a product
+// Delete a product with audit logging
 export async function deleteProduct(id: string): Promise<void> {
   try {
+    // Get the product owner for logging
+    const { data: product } = await supabase
+      .from('products')
+      .select('owner_id, title')
+      .eq('id', id)
+      .single();
+    
     const { error } = await supabase
       .from('products')
       .delete()
@@ -162,6 +235,24 @@ export async function deleteProduct(id: string): Promise<void> {
     if (error) {
       console.error("Error deleting product:", error);
       throw new Error(error.message);
+    }
+    
+    // Log the product deletion
+    try {
+      await supabase
+        .from('activity_logs')
+        .insert({
+          user_id: product.owner_id,
+          activity_type: 'product_deleted',
+          resource_id: id,
+          resource_type: 'product',
+          details: {
+            title: product.title
+          }
+        });
+    } catch (logError) {
+      console.error("Error logging product deletion:", logError);
+      // Non-critical, don't throw
     }
   } catch (error) {
     console.error("Error in deleteProduct:", error);

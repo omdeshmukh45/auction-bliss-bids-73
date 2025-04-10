@@ -4,11 +4,12 @@ import { useParams } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { listenToAuctionChanges } from "@/services/bidService";
+import { listenToAuctionChanges, getAuctionBidHistory, BidHistoryItem } from "@/services/bidService";
 import AuctionImageGallery from "@/components/auction/AuctionImageGallery";
 import AuctionDetailTabs from "@/components/auction/AuctionDetailTabs";
 import BidHistory from "@/components/auction/BidHistory";
 import BiddingForm from "@/components/auction/BiddingForm";
+import { supabase } from "@/integrations/supabase/client";
 
 // Sample auction data (in a real app, this would come from MySQL API)
 const auctionData = {
@@ -39,18 +40,7 @@ const auctionData = {
     condition: "Excellent",
     shippingOptions: ["Insured Shipping", "Local Pickup"],
     paymentMethods: ["Credit Card", "Bank Transfer", "Escrow"],
-    bidHistory: [
-      { bidder: "Watch_Collector_42", amount: 12500, time: "2 days ago" },
-      { bidder: "VintageHunter", amount: 12250, time: "2 days ago" },
-      { bidder: "HorologicalExpert", amount: 12000, time: "3 days ago" },
-      { bidder: "TimePiece88", amount: 11750, time: "3 days ago" },
-      { bidder: "LuxuryBuyer", amount: 11500, time: "4 days ago" },
-      { bidder: "WatchEnthusiast", amount: 11250, time: "4 days ago" },
-      { bidder: "CollectorItems", amount: 11000, time: "5 days ago" },
-      { bidder: "RareFinds", amount: 10500, time: "5 days ago" },
-      { bidder: "VintageSeeker", amount: 10250, time: "6 days ago" },
-      { bidder: "TimelessTreasures", amount: 10000, time: "6 days ago" },
-    ],
+    bidHistory: []
   },
   // Add more auctions as needed
 };
@@ -60,24 +50,57 @@ const AuctionDetail = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [auction, setAuction] = useState<any>(null);
-  const [bidHistory, setBidHistory] = useState<any[]>([]);
+  const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
 
   // Fetch auction data and bidding history on mount
   useEffect(() => {
     if (!id) return;
     
-    // Fetch auction from API
+    // Fetch auction from database
     const fetchAuction = async () => {
       setIsLoading(true);
       try {
-        // In a real app, fetch from API
-        // const response = await fetch(`/api/auctions/${id}`);
-        // const data = await response.json();
+        // Try to get the auction from the database
+        const { data, error } = await supabase
+          .from('auctions')
+          .select('*')
+          .eq('id', id)
+          .single();
         
-        // For now, use sample data
-        console.log("Fetching auction data for:", id);
-        setAuction(auctionData.auction1);
-        setBidHistory(auctionData.auction1.bidHistory);
+        if (error) {
+          console.error("Error fetching auction:", error);
+          // Fall back to sample data
+          setAuction({...auctionData.auction1, id});
+        } else if (data) {
+          setAuction({
+            id: data.id,
+            title: data.title,
+            images: data.image_urls || auctionData.auction1.images,
+            description: data.description,
+            currentBid: data.current_bid,
+            nextMinimumBid: data.current_bid + (data.min_bid_increment || 250),
+            startingBid: data.starting_bid,
+            timeLeft: getRemainingTime(data.end_time),
+            bids: data.bids_count || 0,
+            views: data.watch_count || 0,
+            location: data.location,
+            seller: {
+              name: data.seller_name || "Sample Seller",
+              rating: data.seller_rating || 4.5,
+              since: data.seller_joined_date ? new Date(data.seller_joined_date).getFullYear().toString() : "2020",
+              items: data.seller_total_sales || 50,
+            },
+            category: data.category,
+            condition: data.condition,
+            authenticity: data.authenticity,
+            shippingOptions: ["Standard Shipping"],
+            paymentMethods: ["Credit Card", "Bank Transfer"]
+          });
+        }
+        
+        // Get bid history
+        const bids = await getAuctionBidHistory(id);
+        setBidHistory(bids);
         
         // Set up listener for auction updates (bids, etc.)
         const unsubscribeAuction = listenToAuctionChanges(id, (updatedAuction) => {
@@ -85,6 +108,11 @@ const AuctionDetail = () => {
             ...current,
             ...updatedAuction
           }));
+          
+          // Refetch bid history when auction updates
+          getAuctionBidHistory(id).then(newBids => {
+            setBidHistory(newBids);
+          });
         });
         
         return () => {
@@ -93,8 +121,8 @@ const AuctionDetail = () => {
       } catch (error) {
         console.error("Error fetching auction:", error);
         // Fall back to sample data
-        setAuction(auctionData.auction1);
-        setBidHistory(auctionData.auction1.bidHistory);
+        setAuction({...auctionData.auction1, id});
+        setBidHistory([]);
       } finally {
         setIsLoading(false);
       }
@@ -102,6 +130,24 @@ const AuctionDetail = () => {
     
     fetchAuction();
   }, [id]);
+
+  // Helper to calculate time remaining
+  const getRemainingTime = (endTimeStr: string) => {
+    try {
+      const endTime = new Date(endTimeStr);
+      const now = new Date();
+      const diff = endTime.getTime() - now.getTime();
+      
+      if (diff <= 0) return "Auction ended";
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      
+      return `${days} days, ${hours} hours`;
+    } catch (e) {
+      return "Time remaining unknown";
+    }
+  };
 
   if (isLoading) {
     return (
@@ -146,6 +192,7 @@ const AuctionDetail = () => {
             <AuctionDetailTabs auction={auction} />
 
             <BidHistory 
+              auctionId={auction.id}
               bidHistory={bidHistory} 
               totalBids={auction.bids || bidHistory.length} 
             />
