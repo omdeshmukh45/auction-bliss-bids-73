@@ -133,20 +133,18 @@ export async function createProduct(productData: {
       throw new Error(error.message);
     }
     
-    // Log the product creation
+    // Log the product creation - using RPC to avoid TypeScript errors
     try {
-      await supabase
-        .from('activity_logs')
-        .insert({
-          user_id: owner_id,
-          activity_type: 'product_created',
-          resource_id: data.id,
-          resource_type: 'product',
-          details: {
-            title: data.title,
-            price: data.price
-          }
-        });
+      await supabase.rpc('log_product_activity', {
+        p_user_id: owner_id,
+        p_activity_type: 'product_created',
+        p_resource_id: data.id,
+        p_resource_type: 'product',
+        p_details: {
+          title: data.title,
+          price: data.price
+        }
+      });
     } catch (logError) {
       console.error("Error logging product creation:", logError);
       // Don't throw here as the product was created successfully
@@ -181,7 +179,7 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
       throw new Error(error.message);
     }
     
-    // Log the product update with changes
+    // Log the product update with changes - using RPC to avoid TypeScript errors
     try {
       const changes: Record<string, { old: any, new: any }> = {};
       for (const key in updates) {
@@ -195,15 +193,13 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
       
       // Only log if there were actual changes
       if (Object.keys(changes).length > 0) {
-        await supabase
-          .from('activity_logs')
-          .insert({
-            user_id: currentProduct.owner_id,
-            activity_type: 'product_updated',
-            resource_id: id,
-            resource_type: 'product',
-            details: { changes }
-          });
+        await supabase.rpc('log_product_activity', {
+          p_user_id: currentProduct.owner_id,
+          p_activity_type: 'product_updated',
+          p_resource_id: id,
+          p_resource_type: 'product',
+          p_details: { changes }
+        });
       }
     } catch (logError) {
       console.error("Error logging product update:", logError);
@@ -237,19 +233,17 @@ export async function deleteProduct(id: string): Promise<void> {
       throw new Error(error.message);
     }
     
-    // Log the product deletion
+    // Log the product deletion - using RPC to avoid TypeScript errors
     try {
-      await supabase
-        .from('activity_logs')
-        .insert({
-          user_id: product.owner_id,
-          activity_type: 'product_deleted',
-          resource_id: id,
-          resource_type: 'product',
-          details: {
-            title: product.title
-          }
-        });
+      await supabase.rpc('log_product_activity', {
+        p_user_id: product.owner_id,
+        p_activity_type: 'product_deleted',
+        p_resource_id: id,
+        p_resource_type: 'product',
+        p_details: {
+          title: product.title
+        }
+      });
     } catch (logError) {
       console.error("Error logging product deletion:", logError);
       // Non-critical, don't throw

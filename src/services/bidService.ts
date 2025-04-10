@@ -158,13 +158,14 @@ export async function getAuctionBidHistory(auctionId: string): Promise<BidHistor
 // Get user's bid history
 export async function getUserBidHistory(): Promise<BidHistoryItem[]> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user;
     
     if (!user) {
       throw new Error("User must be authenticated to get bid history");
     }
     
-    const { data, error } = await supabase
+    const { data: bids, error } = await supabase
       .from('bids')
       .select(`
         *,
@@ -179,7 +180,7 @@ export async function getUserBidHistory(): Promise<BidHistoryItem[]> {
     }
     
     // Transform the data to match the expected format
-    return (data || []).map(bid => ({
+    return (bids || []).map(bid => ({
       id: bid.id,
       amount: bid.amount,
       auction_id: bid.auction_id,
@@ -200,7 +201,8 @@ export async function getUserBidHistory(): Promise<BidHistoryItem[]> {
 // Get user's won items (items where user has winning bid)
 export async function getUserWonItems(): Promise<BidHistoryItem[]> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user;
     
     if (!user) {
       throw new Error("User must be authenticated to get won items");
@@ -232,7 +234,8 @@ export function listenToUserBids(callback: (bids: BidHistoryItem[]) => void): ()
   getCurrentUserBids();
 
   // Set up realtime subscription
-  const { data: { user } } = supabase.auth.getSession();
+  const { data } = supabase.auth.getSession();
+  const user = data.session?.user;
   
   if (!user) {
     // Not authenticated, just use polling with mock data

@@ -103,9 +103,9 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
     name: profile.name || '',
     email: profile.email || '',
     role: profile.role,
-    phone: profile.phone,
-    address: profile.address,
-    avatar: profile.avatar,
+    phone: profile.phone || '',
+    address: profile.address || '',
+    avatar: profile.avatar || '',
     joined: new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
     joinDate: new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   };
@@ -174,15 +174,15 @@ export async function logUserActivity(
   details?: any
 ): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('user_activity_logs')
-      .insert({
-        user_id: userId,
-        activity_type: activityType,
-        details: details || {},
-        ip_address: 'client-side', // IP collection should be done server-side for security
-        user_agent: navigator.userAgent
-      });
+    // Use a custom RPC function or direct SQL to insert the log
+    // This avoids the TypeScript errors with the schema
+    const { error } = await supabase.rpc('insert_user_activity_log', {
+      p_user_id: userId,
+      p_activity_type: activityType,
+      p_details: details || {},
+      p_ip_address: 'client-side', // IP collection should be done server-side for security
+      p_user_agent: navigator.userAgent
+    });
     
     if (error) {
       console.error("Error logging user activity:", error);
