@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload } from "lucide-react";
 import { createProduct, Product, uploadProductImage } from "@/services/productService";
+import { useAuth } from "@/context/AuthContext";
 
 interface AddProductDialogProps {
   open: boolean;
@@ -17,6 +18,7 @@ interface AddProductDialogProps {
 
 const AddProductDialog: React.FC<AddProductDialogProps> = ({ open, onClose, onProductAdded }) => {
   const { toast } = useToast();
+  const { userProfile } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -50,6 +52,15 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({ open, onClose, onPr
       return;
     }
     
+    if (!userProfile?.id) {
+      toast({
+        title: "Authentication error",
+        description: "You must be logged in to add products",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -60,8 +71,9 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({ open, onClose, onPr
         imageUrl = await uploadProductImage(image);
       }
       
-      // Create product
+      // Create product with owner_id
       const newProduct = await createProduct({
+        owner_id: userProfile.id,
         title,
         description,
         price: parseFloat(price),

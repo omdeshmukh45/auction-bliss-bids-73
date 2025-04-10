@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Product {
@@ -27,6 +26,24 @@ export async function getAllProducts(): Promise<Product[]> {
     return data || [];
   } catch (error) {
     console.error("Error in getAllProducts:", error);
+    throw error;
+  }
+}
+
+// Get products by owner (the missing function)
+export async function getUserProducts(): Promise<Product[]> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return [];
+    }
+    
+    // Then call the getProductsByOwner function
+    return await getProductsByOwner(user.id);
+  } catch (error) {
+    console.error("Error in getUserProducts:", error);
     throw error;
   }
 }
@@ -78,13 +95,22 @@ export async function getProductById(id: string): Promise<Product | null> {
 
 // Create a new product
 export async function createProduct(product: {
-  owner_id: string;
+  owner_id?: string;
   title: string;
   description: string;
   price: number;
   image_url?: string;
 }): Promise<Product> {
   try {
+    // Get the current user if owner_id is not provided
+    if (!product.owner_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+      product.owner_id = user.id;
+    }
+    
     const { data, error } = await supabase
       .from('products')
       .insert(product)
