@@ -175,48 +175,55 @@ export const listenToAuctionChanges = (auctionId: string, callback: (auction: an
 
 // Function to listen to bid changes in real-time
 export const listenToUserBids = (callback: (bids: any[]) => void) => {
-  const { data: authData } = supabase.auth.getSession();
-  const userId = authData.session?.user?.id;
-  
-  if (!userId) {
-    console.warn("Cannot listen to bids: User not authenticated");
-    return () => {}; // Return empty unsubscribe function
-  }
-  
-  // Subscribe to bid changes
-  const subscription = supabase
-    .channel('bids_channel')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'bids',
-        filter: `bidder_id=eq.${userId}`
-      },
-      async () => {
-        // When data changes, fetch the updated bid history
-        try {
-          const bids = await getUserBidHistory();
-          callback(bids);
-        } catch (error) {
-          console.error("Error updating bids in real-time:", error);
-        }
-      }
-    )
-    .subscribe();
-  
-  // Return unsubscribe function
-  return () => {
-    supabase.removeChannel(subscription);
+  const fetchUserSession = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user?.id;
   };
+
+  fetchUserSession().then(userId => {
+    if (!userId) {
+      console.warn("Cannot listen to bids: User not authenticated");
+      return () => {}; // Return empty unsubscribe function
+    }
+    
+    // Subscribe to bid changes
+    const subscription = supabase
+      .channel('bids_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bids',
+          filter: `bidder_id=eq.${userId}`
+        },
+        async () => {
+          // When data changes, fetch the updated bid history
+          try {
+            const bids = await getUserBidHistory();
+            callback(bids);
+          } catch (error) {
+            console.error("Error updating bids in real-time:", error);
+          }
+        }
+      )
+      .subscribe();
+    
+    // Return unsubscribe function
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  });
+  
+  // Default return to satisfy TypeScript
+  return () => {};
 };
 
 // Function to place a bid on an auction
 export const placeBid = async (auctionId: string, amount: number) => {
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const user = sessionData.session?.user;
+    const { data: session } = await supabase.auth.getSession();
+    const user = session.session?.user;
     
     if (!user) {
       throw new Error("User not authenticated");
