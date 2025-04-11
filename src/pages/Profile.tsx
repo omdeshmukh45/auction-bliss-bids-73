@@ -48,14 +48,12 @@ const Profile = () => {
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isFetchingBids, setIsFetchingBids] = useState(false);
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, isLoading, navigate]);
 
-  // Update form data when user profile changes
   useEffect(() => {
     if (userProfile) {
       setFormData({
@@ -68,14 +66,12 @@ const Profile = () => {
     }
   }, [userProfile]);
 
-  // Subscribe to bid history changes using polling
   useEffect(() => {
     if (!isAuthenticated) return;
     
     const unsubscribe = listenToUserBids((bids) => {
       setBidHistory(bids);
       
-      // Filter won items
       const won = bids.filter(bid => 
         bid.status === "won" || bid.status === "winning"
       );
@@ -85,7 +81,6 @@ const Profile = () => {
     return () => unsubscribe();
   }, [isAuthenticated]);
 
-  // Initial fetch of bid history
   useEffect(() => {
     const fetchBidHistory = async () => {
       if (!isAuthenticated) return;

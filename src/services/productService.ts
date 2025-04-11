@@ -63,12 +63,14 @@ export async function getProducts(filter?: ProductFilter): Promise<Product[]> {
 // Get products owned by the current user
 export async function getUserProducts(): Promise<Product[]> {
   try {
-    const user = getCurrentUser();
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user;
+    
     if (!user) {
       throw new Error("User not authenticated");
     }
 
-    const { data, error } = await supabase
+    const { data: products, error } = await supabase
       .from("products")
       .select("*")
       .eq("owner_id", user.id);
@@ -78,7 +80,7 @@ export async function getUserProducts(): Promise<Product[]> {
       throw error;
     }
 
-    return data || [];
+    return products || [];
   } catch (error) {
     console.error("Error in getUserProducts:", error);
     throw error;
@@ -109,7 +111,9 @@ export async function getProductById(id: string): Promise<Product | null> {
 // Create a new product
 export async function createProduct(product: Omit<Product, "id" | "created_at">): Promise<Product> {
   try {
-    const user = getCurrentUser();
+    const { data: userData } = await supabase.auth.getSession();
+    const user = userData.session?.user;
+    
     if (!user) {
       throw new Error("User not authenticated");
     }
@@ -133,12 +137,12 @@ export async function createProduct(product: Omit<Product, "id" | "created_at">)
     }
 
     // Log the product creation activity
-    await supabase.rpc("log_product_activity", {
+    await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
       p_activity_type: "create_product",
       p_resource_id: data.id,
       p_resource_type: "product",
-      p_details: { title: product.title, price: product.price } as any
+      p_details: { title: product.title, price: product.price }
     });
 
     return data;
@@ -151,7 +155,9 @@ export async function createProduct(product: Omit<Product, "id" | "created_at">)
 // Update an existing product
 export async function updateProduct(id: string, updates: Partial<Omit<Product, "id" | "owner_id" | "created_at">>): Promise<Product> {
   try {
-    const user = getCurrentUser();
+    const { data: userData } = await supabase.auth.getSession();
+    const user = userData.session?.user;
+    
     if (!user) {
       throw new Error("User not authenticated");
     }
@@ -184,12 +190,12 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
     }
 
     // Log the product update activity
-    await supabase.rpc("log_product_activity", {
+    await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
       p_activity_type: "update_product",
       p_resource_id: id,
       p_resource_type: "product",
-      p_details: updates as any
+      p_details: updates
     });
 
     return data;
@@ -202,7 +208,9 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
 // Delete a product
 export async function deleteProduct(id: string): Promise<void> {
   try {
-    const user = getCurrentUser();
+    const { data: userData } = await supabase.auth.getSession();
+    const user = userData.session?.user;
+    
     if (!user) {
       throw new Error("User not authenticated");
     }
@@ -219,12 +227,12 @@ export async function deleteProduct(id: string): Promise<void> {
     }
 
     // Log the product deletion activity before deleting the product
-    await supabase.rpc("log_product_activity", {
+    await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
       p_activity_type: "delete_product",
       p_resource_id: id,
       p_resource_type: "product",
-      p_details: { product_id: id } as any
+      p_details: { product_id: id }
     });
 
     const { error } = await supabase.from("products").delete().eq("id", id);
@@ -242,7 +250,9 @@ export async function deleteProduct(id: string): Promise<void> {
 // Upload product image
 export async function uploadProductImage(file: File): Promise<string> {
   try {
-    const user = getCurrentUser();
+    const { data: userData } = await supabase.auth.getSession();
+    const user = userData.session?.user;
+    
     if (!user) {
       throw new Error("User not authenticated");
     }

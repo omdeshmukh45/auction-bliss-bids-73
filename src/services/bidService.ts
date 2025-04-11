@@ -33,8 +33,8 @@ export async function placeBid(
   amount: number
 ): Promise<void> {
   // Check authentication
-  const { data } = await supabase.auth.getUser();
-  const user = data.user;
+  const { data } = await supabase.auth.getSession();
+  const user = data.session?.user;
   
   if (!user) {
     throw new Error("You must be logged in to place a bid");
@@ -66,12 +66,10 @@ export async function placeBid(
     }
 
     // Log the bid activity
-    await supabase.rpc("log_product_activity", {
+    await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
       p_activity_type: "place_bid",
-      p_resource_id: auctionId,
-      p_resource_type: "auction",
-      p_details: { amount, auction_title: auctionTitle } as any
+      p_details: { amount, auction_title: auctionTitle }
     });
 
     // Trigger local update for UI
@@ -246,36 +244,42 @@ export function listenToUserBids(callback: (bids: BidHistoryItem[]) => void): ()
   getCurrentUserBids();
 
   // Set up realtime subscription
-  const { data: sessionData } = supabase.auth.getSession();
-  const user = sessionData.session?.user;
+  const userPromise = supabase.auth.getSession();
   
-  if (!user) {
-    // Not authenticated, just use polling with mock data
-    const interval = setInterval(() => {
-      callback(MOCK_BID_HISTORY);
-    }, 30000);
+  userPromise.then(({ data: sessionData }) => {
+    const user = sessionData.session?.user;
     
-    return () => clearInterval(interval);
-  }
+    if (!user) {
+      // Not authenticated, just use polling with mock data
+      const interval = setInterval(() => {
+        callback(MOCK_BID_HISTORY);
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+    
+    // Set up realtime subscription for authenticated users
+    const channel = supabase
+      .channel('user_bids')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'bids',
+        filter: `bidder_id=eq.${user.id}`
+      }, () => {
+        // Refetch all bids when a new one is added
+        getCurrentUserBids();
+      })
+      .subscribe();
+    
+    // Return cleanup function
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  });
   
-  // Set up realtime subscription for authenticated users
-  const channel = supabase
-    .channel('user_bids')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'bids',
-      filter: `bidder_id=eq.${user.id}`
-    }, () => {
-      // Refetch all bids when a new one is added
-      getCurrentUserBids();
-    })
-    .subscribe();
-  
-  // Return cleanup function
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  // Default return function
+  return () => {};
 }
 
 // Mock bid history data for fallback

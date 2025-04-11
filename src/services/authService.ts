@@ -1,162 +1,33 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { User, Session, AuthError } from "@supabase/supabase-js";
 
-// User profile interface for type safety
-interface UserProfile {
+// Type definition for user profile
+export interface UserProfile {
   id: string;
-  name: string | null;
-  email: string | null;
-  role: string | null;
-  created_at: string | null;
-  phone?: string | null;
-  address?: string | null;
-  avatar?: string | null;
+  name: string;
+  email: string;
+  role: string;
+  created_at: string;
 }
 
-// Authentication state
-interface AuthState {
-  isAuthenticated: boolean;
+// Type definition for authentication state
+export interface AuthState {
   user: User | null;
+  session: Session | null;
   profile: UserProfile | null;
-  error: string | null;
-  loading: boolean;
+  isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
-// Initialize state
-let authState: AuthState = {
-  isAuthenticated: false,
-  user: null,
-  profile: null,
-  error: null,
-  loading: true,
-};
-
-// Subscribers to auth changes
-const subscribers: ((state: AuthState) => void)[] = [];
-
-// Subscribe to auth changes
-export function subscribeToAuthChanges(callback: (state: AuthState) => void) {
-  subscribers.push(callback);
-  // Immediately notify subscriber of current state
-  callback({ ...authState });
-
-  // Return unsubscribe function
-  return () => {
-    const index = subscribers.indexOf(callback);
-    if (index > -1) {
-      subscribers.splice(index, 1);
-    }
-  };
+// Get current user (synchronous, from stored session)
+export function getCurrentUser(): User | null {
+  const session = supabase.auth.getSession();
+  return session ? supabase.auth.getUser().then(({ data }) => data.user) : null;
 }
 
-// Notify all subscribers of state change
-function notifySubscribers() {
-  for (const subscriber of subscribers) {
-    subscriber({ ...authState });
-  }
-}
-
-// Initialize auth state on app start
-export async function initializeAuth() {
-  try {
-    authState = { ...authState, loading: true };
-    notifySubscribers();
-
-    // Check for existing session
-    const { data, error } = await supabase.auth.getSession();
-    
-    if (error) {
-      console.error("Error getting session:", error);
-      authState = {
-        ...authState,
-        isAuthenticated: false,
-        loading: false,
-        error: error.message,
-      };
-      notifySubscribers();
-      return;
-    }
-
-    if (data?.session) {
-      const user = data.session.user;
-      // Get user profile
-      const profile = await getUserProfile(user.id);
-      
-      authState = {
-        isAuthenticated: true,
-        user,
-        profile,
-        error: null,
-        loading: false,
-      };
-
-      console.info("Auth state changed: User logged in");
-    } else {
-      authState = {
-        isAuthenticated: false,
-        user: null,
-        profile: null,
-        error: null,
-        loading: false,
-      };
-      console.info("Auth state changed: User logged out");
-    }
-
-    notifySubscribers();
-
-    // Set up auth state change listener
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state change:", event, session?.user?.id);
-
-      if (event === "SIGNED_IN" && session) {
-        const user = session.user;
-        const profile = await getUserProfile(user.id);
-        
-        authState = {
-          isAuthenticated: true,
-          user,
-          profile,
-          error: null,
-          loading: false,
-        };
-        console.info("Auth state changed: User logged in");
-      } else if (event === "SIGNED_OUT" || event === "USER_DELETED") {
-        authState = {
-          isAuthenticated: false,
-          user: null,
-          profile: null,
-          error: null,
-          loading: false,
-        };
-        console.info("Auth state changed: User logged out");
-      } else if (event === "USER_UPDATED" && session) {
-        const user = session.user;
-        const profile = await getUserProfile(user.id);
-        
-        authState = {
-          ...authState,
-          user,
-          profile,
-        };
-        console.info("Auth state changed: User updated");
-      }
-
-      notifySubscribers();
-    });
-  } catch (error: any) {
-    console.error("Error initializing auth:", error);
-    authState = {
-      ...authState,
-      loading: false,
-      error: error.message,
-    };
-    notifySubscribers();
-  }
-}
-
-// Get user profile
-export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+// Get user profile by ID
+export async function getUserProfile(userId: string): Promise<UserProfile> {
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -166,53 +37,205 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
     if (error) {
       console.error("Error fetching user profile:", error);
-      return null;
+      throw error;
     }
 
-    if (!data) {
-      return null;
-    }
-
-    // Create a properly typed profile object with optional fields
-    return {
-      id: data.id,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      created_at: data.created_at,
-      phone: data.phone || null,
-      address: data.address || null,
-      avatar: data.avatar || null
-    };
+    return data as UserProfile;
   } catch (error) {
     console.error("Error in getUserProfile:", error);
-    return null;
+    throw error;
   }
 }
 
-// Update user profile
-export async function updateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile | null> {
+// Login user with email and password
+export async function loginUser(email: string, password: string): Promise<{ user: User | null; session: Session | null }> {
   try {
-    if (!authState.user) {
-      throw new Error("User must be logged in to update profile");
-    }
-
-    const userId = authState.user.id;
-
-    // Log the activity using the RPC function
-    await supabase.rpc("insert_user_activity_log", {
-      p_user_id: userId,
-      p_activity_type: "profile_update",
-      p_details: profileData as any,
-      p_ip_address: null,
-      p_user_agent: navigator.userAgent
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
+    if (error) {
+      console.error("Error logging in:", error);
+      throw error;
+    }
+
+    // Log the login activity
+    if (data.user) {
+      await supabase.rpc("log_user_activity", {
+        p_user_id: data.user.id,
+        p_activity_type: "login",
+        p_details: { method: "email" }
+      });
+    }
+
+    return {
+      user: data.user,
+      session: data.session,
+    };
+  } catch (error) {
+    console.error("Error in loginUser:", error);
+    throw error;
+  }
+}
+
+// Register a new user
+export async function registerUser(email: string, password: string, name: string): Promise<{ user: User | null; session: Session | null }> {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+        },
+      },
+    });
+
+    if (error) {
+      console.error("Error registering user:", error);
+      throw error;
+    }
+
+    // Log the registration activity
+    if (data.user) {
+      await supabase.rpc("log_user_activity", {
+        p_user_id: data.user.id,
+        p_activity_type: "register",
+        p_details: { method: "email" }
+      });
+    }
+
+    return {
+      user: data.user,
+      session: data.session,
+    };
+  } catch (error) {
+    console.error("Error in registerUser:", error);
+    throw error;
+  }
+}
+
+// Logout user
+export async function logoutUser(): Promise<void> {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+    
+    if (user) {
+      // Log the logout activity
+      await supabase.rpc("log_user_activity", {
+        p_user_id: user.id,
+        p_activity_type: "logout",
+        p_details: {}
+      });
+    }
+    
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.error("Error logging out:", error);
+      throw error;
+    }
+  } catch (error) {
+    console.error("Error in logoutUser:", error);
+    throw error;
+  }
+}
+
+// Set up auth state change listener
+export function setupAuthListener(callback: (state: AuthState) => void): () => void {
+  // Initial auth state
+  const initialState: AuthState = {
+    user: null,
+    session: null,
+    profile: null,
+    isAuthenticated: false,
+    isLoading: true,
+  };
+
+  // Initial load
+  supabase.auth.getSession().then(({ data }) => {
+    const newState = { ...initialState, isLoading: false };
+    if (data.session) {
+      newState.session = data.session;
+      newState.user = data.session.user;
+      newState.isAuthenticated = true;
+      
+      // Get user profile
+      getUserProfile(data.session.user.id)
+        .then(profile => {
+          callback({
+            ...newState,
+            profile,
+          });
+        })
+        .catch(err => {
+          console.error("Error fetching profile:", err);
+          callback(newState);
+        });
+    } else {
+      callback(newState);
+    }
+  });
+
+  // Listen for auth changes
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      // Don't update on token refresh
+      if (event === "TOKEN_REFRESHED") return;
+      
+      // Update on sign in, sign out
+      let newState: AuthState = {
+        user: session?.user || null,
+        session: session,
+        profile: null,
+        isAuthenticated: !!session,
+        isLoading: false,
+      };
+      
+      // Get user profile on sign in
+      if (session?.user) {
+        try {
+          const profile = await getUserProfile(session.user.id);
+          newState.profile = profile;
+          
+          // Log user activity if user just signed in
+          if (event === "SIGNED_IN") {
+            await supabase.rpc("log_user_activity", {
+              p_user_id: session.user.id,
+              p_activity_type: "session_start",
+              p_details: {}
+            });
+          }
+        } catch (err) {
+          console.error("Error fetching profile:", err);
+        }
+      }
+      
+      callback(newState);
+    }
+  );
+
+  // Return unsubscribe function
+  return () => {
+    subscription.unsubscribe();
+  };
+}
+
+// Update user profile
+export async function updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
+  try {
+    // Only allow updating specific fields
+    const validUpdates: any = {};
+    if (updates.name) validUpdates.name = updates.name;
+    if (updates.email) validUpdates.email = updates.email;
+    
     const { data, error } = await supabase
       .from("profiles")
-      .update(profileData)
+      .update(validUpdates)
       .eq("id", userId)
-      .select("*")
+      .select()
       .single();
 
     if (error) {
@@ -220,117 +243,16 @@ export async function updateUserProfile(profileData: Partial<UserProfile>): Prom
       throw error;
     }
 
-    // Update local state
-    if (authState.profile) {
-      authState = {
-        ...authState,
-        profile: {
-          ...authState.profile,
-          ...data,
-        },
-      };
-      notifySubscribers();
-    }
+    // Log the profile update
+    await supabase.rpc("log_user_activity", {
+      p_user_id: userId,
+      p_activity_type: "update_profile",
+      p_details: updates
+    });
 
-    return data;
+    return data as UserProfile;
   } catch (error) {
     console.error("Error in updateUserProfile:", error);
-    throw error;
-  }
-}
-
-// Check if user is authenticated
-export function isAuthenticated(): boolean {
-  return authState.isAuthenticated;
-}
-
-// Get current user
-export function getCurrentUser(): User | null {
-  return authState.user;
-}
-
-// Get current user profile
-export function getCurrentUserProfile(): UserProfile | null {
-  return authState.profile;
-}
-
-// Login with email and password
-export async function loginWithEmail(email: string, password: string): Promise<void> {
-  try {
-    authState = { ...authState, loading: true, error: null };
-    notifySubscribers();
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      authState = { ...authState, loading: false, error: error.message };
-      notifySubscribers();
-      throw error;
-    }
-
-    // Auth state will be updated by the onAuthStateChange listener
-  } catch (error: any) {
-    console.error("Login error:", error);
-    authState = { ...authState, loading: false, error: error.message };
-    notifySubscribers();
-    throw error;
-  }
-}
-
-// Sign up with email and password
-export async function signUpWithEmail(email: string, password: string, name: string): Promise<void> {
-  try {
-    authState = { ...authState, loading: true, error: null };
-    notifySubscribers();
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-          role: "user",
-        },
-      },
-    });
-
-    if (error) {
-      authState = { ...authState, loading: false, error: error.message };
-      notifySubscribers();
-      throw error;
-    }
-
-    // Auth state will be updated by the onAuthStateChange listener
-  } catch (error: any) {
-    console.error("Signup error:", error);
-    authState = { ...authState, loading: false, error: error.message };
-    notifySubscribers();
-    throw error;
-  }
-}
-
-// Logout
-export async function logout(): Promise<void> {
-  try {
-    authState = { ...authState, loading: true, error: null };
-    notifySubscribers();
-
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      authState = { ...authState, loading: false, error: error.message };
-      notifySubscribers();
-      throw error;
-    }
-
-    // Auth state will be updated by the onAuthStateChange listener
-  } catch (error: any) {
-    console.error("Logout error:", error);
-    authState = { ...authState, loading: false, error: error.message };
-    notifySubscribers();
     throw error;
   }
 }

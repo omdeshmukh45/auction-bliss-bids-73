@@ -1,119 +1,65 @@
 
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { getCurrentUserProfile, UserProfile, subscribeToAuthChanges } from '@/services/authService';
-import { Loader } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { setupAuthListener, UserProfile } from "@/services/authService";
 
+// Define the shape of the auth context
 interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  profile: UserProfile | null;
   isAuthenticated: boolean;
-  userProfile: UserProfile | null;
   isLoading: boolean;
-  refreshUserProfile: () => Promise<void>;
 }
 
+// Create the context with default values
 const AuthContext = createContext<AuthContextType>({
+  user: null,
+  session: null,
+  profile: null,
   isAuthenticated: false,
-  userProfile: null,
   isLoading: true,
-  refreshUserProfile: async () => {}
 });
 
+// Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext);
 
+// Auth provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // State for auth data
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState<boolean>(false);
 
+  // Set up auth listener on mount
   useEffect(() => {
-    console.log("Setting up auth state listener");
-    
-    // First check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const isLoggedIn = !!session;
-      setAuthenticated(isLoggedIn);
-      
-      if (isLoggedIn) {
-        getCurrentUserProfile().then(profile => {
-          setUserProfile(profile);
-          setIsLoading(false);
-        }).catch(error => {
-          console.error("Error fetching initial user profile:", error);
-          setIsLoading(false);
-        });
-      } else {
-        setIsLoading(false);
-      }
-    });
-    
-    // Then subscribe to auth changes
-    const unsubscribe = subscribeToAuthChanges(async (loggedIn) => {
-      console.log("Auth state changed:", loggedIn ? "User logged in" : "User logged out");
-      setAuthenticated(loggedIn);
-      
-      if (loggedIn) {
-        try {
-          console.log("Fetching user profile");
-          const profile = await getCurrentUserProfile();
-          console.log("Profile fetched:", profile);
-          setUserProfile(profile);
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          setUserProfile(null);
-        }
-      } else {
-        setUserProfile(null);
-      }
+    const unsubscribe = setupAuthListener((authState) => {
+      setUser(authState.user);
+      setSession(authState.session);
+      setProfile(authState.profile);
+      setIsAuthenticated(authState.isAuthenticated);
+      setIsLoading(authState.isLoading);
     });
 
+    // Clean up on unmount
     return () => {
-      console.log("Cleaning up auth state listener");
       unsubscribe();
     };
   }, []);
 
-  const refreshUserProfile = async () => {
-    if (!authenticated) {
-      console.log("No user logged in, cannot refresh profile");
-      return;
-    }
-    
-    try {
-      console.log("Manually refreshing user profile");
-      const profile = await getCurrentUserProfile();
-      console.log("Updated profile:", profile);
-      setUserProfile(profile);
-    } catch (error) {
-      console.error("Error refreshing user profile:", error);
-    }
-  };
-
-  const value = {
-    isAuthenticated: authenticated,
-    userProfile,
-    isLoading,
-    refreshUserProfile
-  };
-
-  console.log("Auth context state:", { 
-    isAuthenticated: authenticated,
-    isLoading,
-    hasProfile: !!userProfile
-  });
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        isAuthenticated,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
-
-// Optional loading component to use with protected routes
-export const AuthLoadingScreen = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="text-center">
-      <Loader className="h-8 w-8 animate-spin mx-auto mb-4" />
-      <p>Loading authentication...</p>
-    </div>
-  </div>
-);
