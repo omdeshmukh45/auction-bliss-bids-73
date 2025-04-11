@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +62,7 @@ const BiddingForm = ({ auction }: BiddingFormProps) => {
 
     setIsPlacingBid(true);
     try {
-      await placeBid(auction.id, auction.title, amount);
+      await placeBid(auction.id, amount);
       
       toast({
         title: "Bid placed successfully!",

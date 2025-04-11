@@ -153,24 +153,24 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
 // Function to handle user sign-up
 export const signUp = async (email: string, password: string) => {
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const result = await supabase.auth.signUp({
       email,
       password,
     });
 
-    if (error) {
-      console.error("Error signing up:", error.message);
-      throw new Error(error.message);
+    if (result.error) {
+      console.error("Error signing up:", result.error.message);
+      throw new Error(result.error.message);
     }
 
-    if (data.user) {
+    if (result.data.user) {
       // Create a user profile in the profiles table
-      await createUserProfile(data.user.id, {
-        email: data.user.email || email,
+      await createUserProfile(result.data.user.id, {
+        email: result.data.user.email || email,
       });
     }
 
-    return data;
+    return result.data;
   } catch (error: any) {
     console.error("Error in signUp:", error.message);
     throw error;
@@ -200,19 +200,19 @@ const createUserProfile = async (userId: string, profileData: Partial<UserProfil
 // Function to handle user sign-in
 export const signIn = async (email: string, password: string) => {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const result = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      console.error("Error signing in:", error.message);
-      throw new Error(error.message);
+    if (result.error) {
+      console.error("Error signing in:", result.error.message);
+      throw new Error(result.error.message);
     }
 
-    if (data.user) {
+    if (result.data.user) {
       await supabase.rpc("log_user_activity", {
-        p_user_id: data.user.id,
+        p_user_id: result.data.user.id,
         p_activity_type: "login",
         p_resource_id: null,
         p_resource_type: "auth",
@@ -220,7 +220,7 @@ export const signIn = async (email: string, password: string) => {
       });
     }
 
-    return data;
+    return result.data;
   } catch (error: any) {
     console.error("Error in signIn:", error.message);
     throw error;
@@ -245,16 +245,16 @@ export const signOut = async () => {
 // Function to handle password reset request
 export const resetPassword = async (email: string) => {
   try {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    const result = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/update-password`,
     });
 
-    if (error) {
-      console.error("Error requesting password reset:", error.message);
-      throw new Error(error.message);
+    if (result.error) {
+      console.error("Error requesting password reset:", result.error.message);
+      throw new Error(result.error.message);
     }
 
-    return data;
+    return result.data;
   } catch (error: any) {
     console.error("Error in resetPassword:", error.message);
     throw error;
@@ -264,18 +264,18 @@ export const resetPassword = async (email: string) => {
 // Function to handle password update
 export const updatePassword = async (newPassword: string) => {
   try {
-    const { data, error } = await supabase.auth.updateUser({
+    const result = await supabase.auth.updateUser({
       password: newPassword,
     });
 
-    if (error) {
-      console.error("Error updating password:", error.message);
-      throw new Error(error.message);
+    if (result.error) {
+      console.error("Error updating password:", result.error.message);
+      throw new Error(result.error.message);
     }
 
-     if (data.user) {
+    if (result.data.user) {
       await supabase.rpc("log_user_activity", {
-        p_user_id: data.user.id,
+        p_user_id: result.data.user.id,
         p_activity_type: "update_password",
         p_resource_id: null,
         p_resource_type: "auth",
@@ -283,7 +283,7 @@ export const updatePassword = async (newPassword: string) => {
       });
     }
 
-    return data;
+    return result.data;
   } catch (error: any) {
     console.error("Error in updatePassword:", error.message);
     throw error;
@@ -305,11 +305,8 @@ export const getUserById = async (userId: string): Promise<User | null> => {
 // Add missing exported functions
 export const loginUser = async (email: string, password: string) => {
   try {
-    const { data, error } = await signIn(email, password);
-    if (error) {
-      return { success: false, message: error.message };
-    }
-    return { success: true, data };
+    const result = await signIn(email, password);
+    return { success: true, data: result };
   } catch (error: any) {
     return { success: false, message: error.message };
   }
@@ -317,22 +314,18 @@ export const loginUser = async (email: string, password: string) => {
 
 export const registerUser = async (email: string, password: string, name: string, role: string) => {
   try {
-    const { user, error } = await signUp(email, password);
+    const result = await signUp(email, password);
     
-    if (error) {
-      return { success: false, message: error.message };
-    }
-    
-    if (user?.id) {
+    if (result.user?.id) {
       // Update the profile with additional information
-      await updateUserProfile(user.id, { 
+      await updateUserProfile(result.user.id, { 
         name, 
         role,
         joinDate: new Date().toISOString().split('T')[0]
       });
     }
     
-    return { success: true, user };
+    return { success: true, user: result.user };
   } catch (error: any) {
     return { success: false, message: error.message };
   }

@@ -1,6 +1,14 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+// Define BidHistoryItem interface
+export interface BidHistoryItem {
+  id: string;
+  bidder_name: string;
+  amount: number;
+  time: string;
+}
+
 // Function to get user bid history
 export const getUserBidHistory = async () => {
   try {
@@ -49,6 +57,33 @@ export const getUserBidHistory = async () => {
   } catch (error) {
     console.error("Error in getUserBidHistory:", error);
     throw error;
+  }
+};
+
+// Function to get auction bid history
+export const getAuctionBidHistory = async (auctionId: string): Promise<BidHistoryItem[]> => {
+  try {
+    const { data, error } = await supabase
+      .from("bids")
+      .select(`
+        id,
+        bidder_name,
+        amount,
+        time
+      `)
+      .eq("auction_id", auctionId)
+      .order("time", { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching auction bid history:", error);
+      throw error;
+    }
+    
+    return data as BidHistoryItem[];
+    
+  } catch (error) {
+    console.error("Error in getAuctionBidHistory:", error);
+    return [];
   }
 };
 
@@ -110,6 +145,32 @@ export const getUserWonItems = async () => {
     console.error("Error in getUserWonItems:", error);
     throw error;
   }
+};
+
+// Function to listen to auction changes in real-time
+export const listenToAuctionChanges = (auctionId: string, callback: (auction: any) => void) => {
+  // Subscribe to auction changes
+  const subscription = supabase
+    .channel('auction_channel')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'auctions',
+        filter: `id=eq.${auctionId}`
+      },
+      (payload) => {
+        // When data changes, pass the updated auction to the callback
+        callback(payload.new);
+      }
+    )
+    .subscribe();
+  
+  // Return unsubscribe function
+  return () => {
+    supabase.removeChannel(subscription);
+  };
 };
 
 // Function to listen to bid changes in real-time
@@ -240,7 +301,7 @@ export const placeBid = async (auctionId: string, amount: number) => {
       p_activity_type: "place_bid",
       p_resource_id: auctionId,
       p_resource_type: "auction",
-      p_details: { amount: amount }
+      p_details: { amount }
     });
     
     return bidData;

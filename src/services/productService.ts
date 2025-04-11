@@ -1,5 +1,5 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { getCurrentUser } from "./authService";
 
 export interface Product {
   id: string;
