@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isAuthenticated } from "./apiService";
@@ -68,8 +67,10 @@ export async function placeBid(
     // Log the bid activity
     await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
-      p_activity_type: "place_bid",
-      p_details: { amount, auction_title: auctionTitle }
+      p_activity_type: "place_bid" as string,
+      p_resource_id: bid.auction_id,
+      p_resource_type: "auction" as string,
+      p_details: { amount: bid.amount }
     });
 
     // Trigger local update for UI

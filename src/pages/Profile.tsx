@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -225,7 +224,7 @@ const Profile = () => {
                     Upload New Photo
                   </Button>
                   <p className="text-xs text-muted-foreground mt-4">
-                    Member since: {userProfile.joinDate}
+                    Member since: {profile.joinDate}
                   </p>
                 </CardContent>
               </Card>

@@ -1,44 +1,107 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { User, Session, AuthError } from "@supabase/supabase-js";
+import { User } from "@supabase/supabase-js";
 
-// Type definition for user profile
 export interface UserProfile {
   id: string;
-  name: string;
   email: string;
-  role: string;
-  created_at: string;
-  phone?: string;
-  address?: string;
-  avatar?: string;
-  joinDate?: string;
+  full_name?: string;
+  avatar_url?: string;
+  // Add other profile fields as necessary
 }
 
-// Type definition for authentication state
-export interface AuthState {
-  user: User | null;
-  session: Session | null;
-  profile: UserProfile | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-}
+// Function to set up authentication state listener
+export const setupAuthListener = (
+  callback: (authState: {
+    user: User | null;
+    session: any | null;
+    profile: UserProfile | null;
+    isAuthenticated: boolean;
+    isLoading: boolean;
+  }) => void
+) => {
+  let isLoading = true;
 
-// Type for login/register response
-export interface AuthResponse {
-  user: User | null;
-  session: Session | null;
-  success: boolean;
-  message?: string;
-}
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    const user = session?.user;
 
-// Get current user (synchronous, from stored session)
-export function getCurrentUser(): User | null {
-  return supabase.auth.getUser().then(({ data }) => data.user);
-}
+    if (user) {
+      getUserProfile(user.id)
+        .then((profile) => {
+          isLoading = false;
+          callback({
+            user,
+            session,
+            profile: profile || null,
+            isAuthenticated: true,
+            isLoading,
+          });
+        })
+        .catch((error) => {
+          console.error("Error fetching user profile:", error);
+          isLoading = false;
+          callback({
+            user,
+            session,
+            profile: null,
+            isAuthenticated: true,
+            isLoading,
+          });
+        });
+    } else {
+      isLoading = false;
+      callback({
+        user: null,
+        session: null,
+        profile: null,
+        isAuthenticated: false,
+        isLoading,
+      });
+    }
+  });
 
-// Get user profile by ID
-export async function getUserProfile(userId: string): Promise<UserProfile> {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      const user = session?.user;
+
+      if (user) {
+        try {
+          const profile = await getUserProfile(user.id);
+          callback({
+            user,
+            session,
+            profile: profile || null,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+          callback({
+            user,
+            session,
+            profile: null,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        }
+      } else {
+        callback({
+          user: null,
+          session: null,
+          profile: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      }
+    }
+  );
+
+  return () => {
+    subscription.unsubscribe();
+  };
+};
+
+// Function to get user profile by ID
+export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -47,229 +110,23 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       .single();
 
     if (error) {
-      console.error("Error fetching user profile:", error);
-      throw error;
+      console.error("Error fetching profile:", error);
+      return null;
     }
 
     return data as UserProfile;
   } catch (error) {
     console.error("Error in getUserProfile:", error);
-    throw error;
+    return null;
   }
-}
+};
 
-// Login user with email and password
-export async function loginUser(email: string, password: string): Promise<AuthResponse> {
+// Function to update user profile
+export const updateUserProfile = async (userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> => {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error("Error logging in:", error);
-      return {
-        user: null,
-        session: null,
-        success: false,
-        message: error.message
-      };
-    }
-
-    // Log the login activity
-    if (data.user) {
-      await supabase.rpc("log_user_activity", {
-        p_user_id: data.user.id,
-        p_activity_type: "login",
-        p_details: { method: "email" }
-      });
-    }
-
-    return {
-      user: data.user,
-      session: data.session,
-      success: true
-    };
-  } catch (error: any) {
-    console.error("Error in loginUser:", error);
-    return {
-      user: null,
-      session: null,
-      success: false,
-      message: error.message || "Unknown error occurred"
-    };
-  }
-}
-
-// Register a new user
-export async function registerUser(email: string, password: string, name: string, role: string = 'user'): Promise<AuthResponse> {
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-          role,
-        },
-      },
-    });
-
-    if (error) {
-      console.error("Error registering user:", error);
-      return {
-        user: null,
-        session: null,
-        success: false,
-        message: error.message
-      };
-    }
-
-    // Log the registration activity
-    if (data.user) {
-      await supabase.rpc("log_user_activity", {
-        p_user_id: data.user.id,
-        p_activity_type: "register",
-        p_details: { method: "email" }
-      });
-    }
-
-    return {
-      user: data.user,
-      session: data.session,
-      success: true
-    };
-  } catch (error: any) {
-    console.error("Error in registerUser:", error);
-    return {
-      user: null,
-      session: null,
-      success: false,
-      message: error.message || "Unknown error occurred"
-    };
-  }
-}
-
-// Logout user
-export async function logoutUser(): Promise<void> {
-  try {
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
-    
-    if (user) {
-      // Log the logout activity
-      await supabase.rpc("log_user_activity", {
-        p_user_id: user.id,
-        p_activity_type: "logout",
-        p_details: {}
-      });
-    }
-    
-    const { error } = await supabase.auth.signOut();
-    
-    if (error) {
-      console.error("Error logging out:", error);
-      throw error;
-    }
-  } catch (error) {
-    console.error("Error in logoutUser:", error);
-    throw error;
-  }
-}
-
-// Set up auth state change listener
-export function setupAuthListener(callback: (state: AuthState) => void): () => void {
-  // Initial auth state
-  const initialState: AuthState = {
-    user: null,
-    session: null,
-    profile: null,
-    isAuthenticated: false,
-    isLoading: true,
-  };
-
-  // Initial load
-  supabase.auth.getSession().then(({ data }) => {
-    const newState = { ...initialState, isLoading: false };
-    if (data.session) {
-      newState.session = data.session;
-      newState.user = data.session.user;
-      newState.isAuthenticated = true;
-      
-      // Get user profile
-      getUserProfile(data.session.user.id)
-        .then(profile => {
-          callback({
-            ...newState,
-            profile,
-          });
-        })
-        .catch(err => {
-          console.error("Error fetching profile:", err);
-          callback(newState);
-        });
-    } else {
-      callback(newState);
-    }
-  });
-
-  // Listen for auth changes
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    async (event, session) => {
-      // Don't update on token refresh
-      if (event === "TOKEN_REFRESHED") return;
-      
-      // Update on sign in, sign out
-      let newState: AuthState = {
-        user: session?.user || null,
-        session: session,
-        profile: null,
-        isAuthenticated: !!session,
-        isLoading: false,
-      };
-      
-      // Get user profile on sign in
-      if (session?.user) {
-        try {
-          const profile = await getUserProfile(session.user.id);
-          newState.profile = profile;
-          
-          // Log user activity if user just signed in
-          if (event === "SIGNED_IN") {
-            await supabase.rpc("log_user_activity", {
-              p_user_id: session.user.id,
-              p_activity_type: "session_start",
-              p_details: {}
-            });
-          }
-        } catch (err) {
-          console.error("Error fetching profile:", err);
-        }
-      }
-      
-      callback(newState);
-    }
-  );
-
-  // Return unsubscribe function
-  return () => {
-    subscription.unsubscribe();
-  };
-}
-
-// Update user profile
-export async function updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
-  try {
-    // Only allow updating specific fields
-    const validUpdates: any = {};
-    if (updates.name) validUpdates.name = updates.name;
-    if (updates.email) validUpdates.email = updates.email;
-    if (updates.phone) validUpdates.phone = updates.phone;
-    if (updates.address) validUpdates.address = updates.address;
-    
     const { data, error } = await supabase
       .from("profiles")
-      .update(validUpdates)
+      .update(updates)
       .eq("id", userId)
       .select()
       .single();
@@ -279,16 +136,161 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
       throw error;
     }
 
-    // Log the profile update
-    await supabase.rpc("log_user_activity", {
-      p_user_id: userId,
-      p_activity_type: "update_profile",
-      p_details: updates
-    });
-
     return data as UserProfile;
   } catch (error) {
     console.error("Error in updateUserProfile:", error);
     throw error;
   }
-}
+};
+
+// Function to handle user sign-up
+export const signUp = async (email: string, password: string) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error("Error signing up:", error.message);
+      throw new Error(error.message);
+    }
+
+    if (data.user) {
+      // Create a user profile in the profiles table
+      await createUserProfile(data.user.id, {
+        email: data.user.email || email,
+      });
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error("Error in signUp:", error.message);
+    throw error;
+  }
+};
+
+// Function to create user profile
+const createUserProfile = async (userId: string, profileData: Partial<UserProfile>) => {
+  try {
+    const { error } = await supabase.from("profiles").insert([
+      {
+        id: userId,
+        ...profileData,
+      },
+    ]);
+
+    if (error) {
+      console.error("Error creating user profile:", error);
+      throw error;
+    }
+  } catch (error) {
+    console.error("Error in createUserProfile:", error);
+    throw error;
+  }
+};
+
+// Function to handle user sign-in
+export const signIn = async (email: string, password: string) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error("Error signing in:", error.message);
+      throw new Error(error.message);
+    }
+
+    if (data.user) {
+      await supabase.rpc("log_user_activity", {
+        p_user_id: data.user.id,
+        p_activity_type: "login" as string,
+        p_resource_id: null,
+        p_resource_type: "auth" as string,
+        p_details: { method: "email" }
+      });
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error("Error in signIn:", error.message);
+    throw error;
+  }
+};
+
+// Function to handle user sign-out
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Error signing out:", error.message);
+      throw new Error(error.message);
+    }
+  } catch (error: any) {
+    console.error("Error in signOut:", error.message);
+    throw error;
+  }
+};
+
+// Function to handle password reset request
+export const resetPassword = async (email: string) => {
+  try {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    });
+
+    if (error) {
+      console.error("Error requesting password reset:", error.message);
+      throw new Error(error.message);
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error("Error in resetPassword:", error.message);
+    throw error;
+  }
+};
+
+// Function to handle password update
+export const updatePassword = async (newPassword: string) => {
+  try {
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      console.error("Error updating password:", error.message);
+      throw new Error(error.message);
+    }
+
+     if (data.user) {
+      await supabase.rpc("log_user_activity", {
+        p_user_id: data.user.id,
+        p_activity_type: "update_password" as string,
+        p_resource_id: null,
+        p_resource_type: "auth" as string,
+        p_details: { method: "reset" }
+      });
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error("Error in updatePassword:", error.message);
+    throw error;
+  }
+};
+
+// Function to get user by ID (Admin only)
+export const getUserById = async (userId: string): Promise<User | null> => {
+    try {
+        const { data, error } = await supabase.auth.admin.getUserById(userId);
+        if (error) throw error;
+        return data.user;
+    } catch (error) {
+        console.error("Error fetching user by ID:", error);
+        return null;
+    }
+};

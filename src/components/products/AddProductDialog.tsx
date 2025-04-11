@@ -1,14 +1,13 @@
 
-// Assuming this component exists and needs to be updated to use profile instead of userProfile
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload } from "lucide-react";
-import { addProduct, Product } from "@/services/productService";
+import { createProduct, Product } from "@/services/productService";
 import { useAuth } from "@/context/AuthContext";
 import { uploadProductImage } from "@/services/storageService";
 
@@ -71,11 +70,12 @@ const AddProductDialog = ({ open, onClose, onProductAdded }: AddProductDialogPro
         throw new Error("Invalid price format");
       }
       
-      const newProduct = await addProduct({
+      const newProduct = await createProduct({
         title,
         price: priceValue,
         description,
         image_url: imageUrl,
+        owner_id: profile.id
       });
       
       toast({
