@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isAuthenticated } from "./apiService";
+import { Session, AuthError } from "@supabase/supabase-js";
 
 // Interface for bid history item
 export interface BidHistoryItem {
@@ -32,7 +33,9 @@ export async function placeBid(
   amount: number
 ): Promise<void> {
   // Check authentication
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getUser();
+  const user = data.user;
+  
   if (!user) {
     throw new Error("You must be logged in to place a bid");
   }
@@ -61,6 +64,15 @@ export async function placeBid(
       console.error("Error placing bid:", bidError);
       throw new Error(bidError.message);
     }
+
+    // Log the bid activity
+    await supabase.rpc("log_product_activity", {
+      p_user_id: user.id,
+      p_activity_type: "place_bid",
+      p_resource_id: auctionId,
+      p_resource_type: "auction",
+      p_details: { amount, auction_title: auctionTitle } as any
+    });
 
     // Trigger local update for UI
     const mockBidEvent = new StorageEvent('storage', {
@@ -158,8 +170,8 @@ export async function getAuctionBidHistory(auctionId: string): Promise<BidHistor
 // Get user's bid history
 export async function getUserBidHistory(): Promise<BidHistoryItem[]> {
   try {
-    const { data } = await supabase.auth.getSession();
-    const user = data.session?.user;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
     
     if (!user) {
       throw new Error("User must be authenticated to get bid history");
@@ -201,8 +213,8 @@ export async function getUserBidHistory(): Promise<BidHistoryItem[]> {
 // Get user's won items (items where user has winning bid)
 export async function getUserWonItems(): Promise<BidHistoryItem[]> {
   try {
-    const { data } = await supabase.auth.getSession();
-    const user = data.session?.user;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
     
     if (!user) {
       throw new Error("User must be authenticated to get won items");
@@ -234,8 +246,8 @@ export function listenToUserBids(callback: (bids: BidHistoryItem[]) => void): ()
   getCurrentUserBids();
 
   // Set up realtime subscription
-  const { data } = supabase.auth.getSession();
-  const user = data.session?.user;
+  const { data: sessionData } = supabase.auth.getSession();
+  const user = sessionData.session?.user;
   
   if (!user) {
     // Not authenticated, just use polling with mock data

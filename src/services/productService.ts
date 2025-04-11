@@ -1,155 +1,146 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { getCurrentUser } from "./authService";
 
 export interface Product {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   price: number;
   image_url?: string;
   owner_id: string;
-  created_at: string;
+  created_at?: string;
 }
 
-// Get all products
-export async function getAllProducts(): Promise<Product[]> {
+export interface ProductFilter {
+  minPrice?: number;
+  maxPrice?: number;
+  searchTerm?: string;
+  sortBy?: "price" | "title" | "created_at";
+  sortOrder?: "asc" | "desc";
+}
+
+// Get all products with filtering
+export async function getProducts(filter?: ProductFilter): Promise<Product[]> {
   try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
+    let query = supabase.from("products").select("*");
+
+    // Apply filters if provided
+    if (filter) {
+      if (filter.minPrice !== undefined) {
+        query = query.gte("price", filter.minPrice);
+      }
+
+      if (filter.maxPrice !== undefined) {
+        query = query.lte("price", filter.maxPrice);
+      }
+
+      if (filter.searchTerm) {
+        query = query.ilike("title", `%${filter.searchTerm}%`);
+      }
+
+      if (filter.sortBy) {
+        query = query.order(filter.sortBy, {
+          ascending: filter.sortOrder === "asc",
+        });
+      }
+    }
+
+    const { data, error } = await query;
+
     if (error) {
       console.error("Error fetching products:", error);
-      throw new Error(error.message);
+      throw error;
     }
-    
+
     return data || [];
   } catch (error) {
-    console.error("Error in getAllProducts:", error);
+    console.error("Error in getProducts:", error);
     throw error;
   }
 }
 
-// Get products by owner (the missing function)
+// Get products owned by the current user
 export async function getUserProducts(): Promise<Product[]> {
   try {
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const user = getCurrentUser();
     if (!user) {
-      return [];
+      throw new Error("User not authenticated");
     }
-    
-    // Then call the getProductsByOwner function
-    return await getProductsByOwner(user.id);
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("owner_id", user.id);
+
+    if (error) {
+      console.error("Error fetching user products:", error);
+      throw error;
+    }
+
+    return data || [];
   } catch (error) {
     console.error("Error in getUserProducts:", error);
     throw error;
   }
 }
 
-// Get products by owner
-export async function getProductsByOwner(ownerId: string): Promise<Product[]> {
-  try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error("Error fetching owner products:", error);
-      throw new Error(error.message);
-    }
-    
-    return data || [];
-  } catch (error) {
-    console.error("Error in getProductsByOwner:", error);
-    throw error;
-  }
-}
-
-// Get a product by ID
+// Get a single product by ID
 export async function getProductById(id: string): Promise<Product | null> {
   try {
     const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
+      .from("products")
+      .select("*")
+      .eq("id", id)
       .single();
-    
+
     if (error) {
-      if (error.code === 'PGRST116') {
-        return null; // Product not found
-      }
       console.error("Error fetching product:", error);
-      throw new Error(error.message);
+      return null;
     }
-    
+
     return data;
   } catch (error) {
     console.error("Error in getProductById:", error);
-    throw error;
+    return null;
   }
 }
 
-// Create a new product with audit logging
-export async function createProduct(productData: {
-  title: string;
-  description: string;
-  price: number;
-  image_url?: string;
-  owner_id?: string;
-}): Promise<Product> {
+// Create a new product
+export async function createProduct(product: Omit<Product, "id" | "created_at">): Promise<Product> {
   try {
-    // Get the current user if owner_id is not provided
-    let owner_id = productData.owner_id;
-    if (!owner_id) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error("User not authenticated");
-      }
-      owner_id = user.id;
+    const user = getCurrentUser();
+    if (!user) {
+      throw new Error("User not authenticated");
     }
-    
-    // Create a proper product object with required owner_id
-    const product = {
-      title: productData.title,
-      description: productData.description,
-      price: productData.price,
-      image_url: productData.image_url,
-      owner_id: owner_id
-    };
-    
+
     const { data, error } = await supabase
-      .from('products')
-      .insert(product)
+      .from("products")
+      .insert({
+        ...product,
+        owner_id: user.id,
+      })
       .select()
       .single();
-    
+
     if (error) {
       console.error("Error creating product:", error);
-      throw new Error(error.message);
+      throw error;
     }
-    
-    // Log the product creation - using RPC to avoid TypeScript errors
-    try {
-      await supabase.rpc('log_product_activity', {
-        p_user_id: owner_id,
-        p_activity_type: 'product_created',
-        p_resource_id: data.id,
-        p_resource_type: 'product',
-        p_details: {
-          title: data.title,
-          price: data.price
-        }
-      });
-    } catch (logError) {
-      console.error("Error logging product creation:", logError);
-      // Don't throw here as the product was created successfully
+
+    if (!data) {
+      throw new Error("No data returned from product creation");
     }
-    
+
+    // Log the product creation activity
+    await supabase.rpc("log_product_activity", {
+      p_user_id: user.id,
+      p_activity_type: "create_product",
+      p_resource_id: data.id,
+      p_resource_type: "product",
+      p_details: { title: product.title, price: product.price } as any
+    });
+
     return data;
   } catch (error) {
     console.error("Error in createProduct:", error);
@@ -157,55 +148,50 @@ export async function createProduct(productData: {
   }
 }
 
-// Update a product with audit logging
-export async function updateProduct(id: string, updates: Partial<Omit<Product, "id" | "created_at" | "owner_id">>): Promise<Product> {
+// Update an existing product
+export async function updateProduct(id: string, updates: Partial<Omit<Product, "id" | "owner_id" | "created_at">>): Promise<Product> {
   try {
-    // Get current product data for comparison
-    const { data: currentProduct } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
+    const user = getCurrentUser();
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
+    // First verify this is the user's product
+    const { data: product } = await supabase
+      .from("products")
+      .select("owner_id")
+      .eq("id", id)
       .single();
-    
+
+    if (!product || product.owner_id !== user.id) {
+      throw new Error("You can only update your own products");
+    }
+
     const { data, error } = await supabase
-      .from('products')
+      .from("products")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
-    
+
     if (error) {
       console.error("Error updating product:", error);
-      throw new Error(error.message);
+      throw error;
     }
-    
-    // Log the product update with changes - using RPC to avoid TypeScript errors
-    try {
-      const changes: Record<string, { old: any, new: any }> = {};
-      for (const key in updates) {
-        if (updates[key] !== currentProduct[key]) {
-          changes[key] = {
-            old: currentProduct[key],
-            new: updates[key]
-          };
-        }
-      }
-      
-      // Only log if there were actual changes
-      if (Object.keys(changes).length > 0) {
-        await supabase.rpc('log_product_activity', {
-          p_user_id: currentProduct.owner_id,
-          p_activity_type: 'product_updated',
-          p_resource_id: id,
-          p_resource_type: 'product',
-          p_details: { changes }
-        });
-      }
-    } catch (logError) {
-      console.error("Error logging product update:", logError);
-      // Don't throw here as the product was updated successfully
+
+    if (!data) {
+      throw new Error("No data returned from product update");
     }
-    
+
+    // Log the product update activity
+    await supabase.rpc("log_product_activity", {
+      p_user_id: user.id,
+      p_activity_type: "update_product",
+      p_resource_id: id,
+      p_resource_type: "product",
+      p_details: updates as any
+    });
+
     return data;
   } catch (error) {
     console.error("Error in updateProduct:", error);
@@ -213,40 +199,39 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
   }
 }
 
-// Delete a product with audit logging
+// Delete a product
 export async function deleteProduct(id: string): Promise<void> {
   try {
-    // Get the product owner for logging
+    const user = getCurrentUser();
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
+    // First verify this is the user's product
     const { data: product } = await supabase
-      .from('products')
-      .select('owner_id, title')
-      .eq('id', id)
+      .from("products")
+      .select("owner_id")
+      .eq("id", id)
       .single();
-    
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', id);
-    
+
+    if (!product || product.owner_id !== user.id) {
+      throw new Error("You can only delete your own products");
+    }
+
+    // Log the product deletion activity before deleting the product
+    await supabase.rpc("log_product_activity", {
+      p_user_id: user.id,
+      p_activity_type: "delete_product",
+      p_resource_id: id,
+      p_resource_type: "product",
+      p_details: { product_id: id } as any
+    });
+
+    const { error } = await supabase.from("products").delete().eq("id", id);
+
     if (error) {
       console.error("Error deleting product:", error);
-      throw new Error(error.message);
-    }
-    
-    // Log the product deletion - using RPC to avoid TypeScript errors
-    try {
-      await supabase.rpc('log_product_activity', {
-        p_user_id: product.owner_id,
-        p_activity_type: 'product_deleted',
-        p_resource_id: id,
-        p_resource_type: 'product',
-        p_details: {
-          title: product.title
-        }
-      });
-    } catch (logError) {
-      console.error("Error logging product deletion:", logError);
-      // Non-critical, don't throw
+      throw error;
     }
   } catch (error) {
     console.error("Error in deleteProduct:", error);
@@ -254,26 +239,31 @@ export async function deleteProduct(id: string): Promise<void> {
   }
 }
 
-// Upload a product image to storage
+// Upload product image
 export async function uploadProductImage(file: File): Promise<string> {
   try {
-    const fileExt = file.name.split('.').pop();
-    const filePath = `${crypto.randomUUID()}.${fileExt}`;
-    
-    const { error } = await supabase.storage
-      .from('product-images')
-      .upload(filePath, file);
-    
-    if (error) {
-      console.error("Error uploading image:", error);
-      throw new Error(error.message);
+    const user = getCurrentUser();
+    if (!user) {
+      throw new Error("User not authenticated");
     }
-    
-    const { data } = supabase.storage
-      .from('product-images')
-      .getPublicUrl(filePath);
-    
-    return data.publicUrl;
+
+    const fileName = `${user.id}/${Date.now()}-${file.name}`;
+    const { error: uploadError, data } = await supabase.storage
+      .from("product-images")
+      .upload(fileName, file, {
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("Error uploading image:", uploadError);
+      throw uploadError;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("product-images")
+      .getPublicUrl(fileName);
+
+    return urlData.publicUrl;
   } catch (error) {
     console.error("Error in uploadProductImage:", error);
     throw error;

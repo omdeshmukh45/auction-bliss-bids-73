@@ -1,213 +1,336 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { Session, User } from "@supabase/supabase-js";
-import { Database } from "@/integrations/supabase/types";
+import { User } from "@supabase/supabase-js";
 
-export interface UserProfile {
+// User profile interface for type safety
+interface UserProfile {
   id: string;
-  name: string;
-  email: string;
-  role?: string;
-  avatar?: string;
-  joined?: string;
-  phone?: string;
-  address?: string;
-  joinDate?: string; // For backward compatibility
+  name: string | null;
+  email: string | null;
+  role: string | null;
+  created_at: string | null;
+  phone?: string | null;
+  address?: string | null;
+  avatar?: string | null;
 }
 
-// Sign up a new user
-export async function registerUser(name: string, email: string, password: string, role: 'farmer' | 'vendor' = 'vendor'): Promise<{ success: boolean; message?: string; user?: User }> {
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-          role
-        }
-      }
-    });
-
-    if (error) {
-      console.error("Sign up error:", error.message);
-      return { success: false, message: error.message };
-    }
-
-    // Create an audit log entry for registration
-    if (data.user) {
-      await logUserActivity(data.user.id, 'registration', {
-        email: email,
-        role: role
-      });
-    }
-
-    return { success: true, user: data.user || undefined };
-  } catch (error: any) {
-    console.error("Unexpected sign up error:", error.message);
-    return { success: false, message: "An unexpected error occurred during sign up" };
-  }
+// Authentication state
+interface AuthState {
+  isAuthenticated: boolean;
+  user: User | null;
+  profile: UserProfile | null;
+  error: string | null;
+  loading: boolean;
 }
 
-// Log in an existing user
-export async function loginUser(email: string, password: string): Promise<{ success: boolean; message?: string; session?: Session }> {
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+// Initialize state
+let authState: AuthState = {
+  isAuthenticated: false,
+  user: null,
+  profile: null,
+  error: null,
+  loading: true,
+};
 
-    if (error) {
-      console.error("Login error:", error.message);
-      return { success: false, message: error.message };
+// Subscribers to auth changes
+const subscribers: ((state: AuthState) => void)[] = [];
+
+// Subscribe to auth changes
+export function subscribeToAuthChanges(callback: (state: AuthState) => void) {
+  subscribers.push(callback);
+  // Immediately notify subscriber of current state
+  callback({ ...authState });
+
+  // Return unsubscribe function
+  return () => {
+    const index = subscribers.indexOf(callback);
+    if (index > -1) {
+      subscribers.splice(index, 1);
     }
-
-    // Create an audit log entry for login
-    if (data.user) {
-      await logUserActivity(data.user.id, 'login');
-    }
-
-    return { success: true, session: data.session };
-  } catch (error: any) {
-    console.error("Unexpected login error:", error.message);
-    return { success: false, message: "An unexpected error occurred during login" };
-  }
-}
-
-// Log out the current user
-export async function logoutUser(): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    await logUserActivity(user.id, 'logout');
-  }
-  await supabase.auth.signOut();
-}
-
-// Get the current user profile
-export async function getCurrentUserProfile(): Promise<UserProfile | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) return null;
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-  
-  if (!profile) return null;
-  
-  // Convert to UserProfile format
-  return {
-    id: profile.id,
-    name: profile.name || '',
-    email: profile.email || '',
-    role: profile.role,
-    phone: profile.phone || '',
-    address: profile.address || '',
-    avatar: profile.avatar || '',
-    joined: new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-    joinDate: new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   };
 }
 
-// Update user profile with audit logging
-export async function updateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    throw new Error("No authenticated user found");
+// Notify all subscribers of state change
+function notifySubscribers() {
+  for (const subscriber of subscribers) {
+    subscriber({ ...authState });
   }
-  
-  // Get the current profile for comparison
-  const { data: currentProfile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-    
-  // Don't update id, email, or joinDate fields
-  const { id, email, joinDate, joined, ...updateData } = profileData;
-  
+}
+
+// Initialize auth state on app start
+export async function initializeAuth() {
   try {
-    // Start transaction by updating profile
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updateData)
-      .eq('id', user.id)
-      .select()
-      .single();
+    authState = { ...authState, loading: true };
+    notifySubscribers();
+
+    // Check for existing session
+    const { data, error } = await supabase.auth.getSession();
     
     if (error) {
-      console.error("Error updating profile:", error);
-      throw new Error(error.message);
+      console.error("Error getting session:", error);
+      authState = {
+        ...authState,
+        isAuthenticated: false,
+        loading: false,
+        error: error.message,
+      };
+      notifySubscribers();
+      return;
     }
-    
-    // Log the profile changes
-    const changes: Record<string, { old: any, new: any }> = {};
-    for (const key in updateData) {
-      if (updateData[key] !== currentProfile[key]) {
-        changes[key] = {
-          old: currentProfile[key],
-          new: updateData[key]
+
+    if (data?.session) {
+      const user = data.session.user;
+      // Get user profile
+      const profile = await getUserProfile(user.id);
+      
+      authState = {
+        isAuthenticated: true,
+        user,
+        profile,
+        error: null,
+        loading: false,
+      };
+
+      console.info("Auth state changed: User logged in");
+    } else {
+      authState = {
+        isAuthenticated: false,
+        user: null,
+        profile: null,
+        error: null,
+        loading: false,
+      };
+      console.info("Auth state changed: User logged out");
+    }
+
+    notifySubscribers();
+
+    // Set up auth state change listener
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state change:", event, session?.user?.id);
+
+      if (event === "SIGNED_IN" && session) {
+        const user = session.user;
+        const profile = await getUserProfile(user.id);
+        
+        authState = {
+          isAuthenticated: true,
+          user,
+          profile,
+          error: null,
+          loading: false,
         };
+        console.info("Auth state changed: User logged in");
+      } else if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+        authState = {
+          isAuthenticated: false,
+          user: null,
+          profile: null,
+          error: null,
+          loading: false,
+        };
+        console.info("Auth state changed: User logged out");
+      } else if (event === "USER_UPDATED" && session) {
+        const user = session.user;
+        const profile = await getUserProfile(user.id);
+        
+        authState = {
+          ...authState,
+          user,
+          profile,
+        };
+        console.info("Auth state changed: User updated");
       }
+
+      notifySubscribers();
+    });
+  } catch (error: any) {
+    console.error("Error initializing auth:", error);
+    authState = {
+      ...authState,
+      loading: false,
+      error: error.message,
+    };
+    notifySubscribers();
+  }
+}
+
+// Get user profile
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching user profile:", error);
+      return null;
     }
-    
-    // Only log if there were actual changes
-    if (Object.keys(changes).length > 0) {
-      await logUserActivity(user.id, 'profile_update', { changes });
+
+    if (!data) {
+      return null;
     }
-    
-    // Return the updated profile in the expected format
-    return await getCurrentUserProfile() as UserProfile;
+
+    // Create a properly typed profile object with optional fields
+    return {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      created_at: data.created_at,
+      phone: data.phone || null,
+      address: data.address || null,
+      avatar: data.avatar || null
+    };
+  } catch (error) {
+    console.error("Error in getUserProfile:", error);
+    return null;
+  }
+}
+
+// Update user profile
+export async function updateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile | null> {
+  try {
+    if (!authState.user) {
+      throw new Error("User must be logged in to update profile");
+    }
+
+    const userId = authState.user.id;
+
+    // Log the activity using the RPC function
+    await supabase.rpc("insert_user_activity_log", {
+      p_user_id: userId,
+      p_activity_type: "profile_update",
+      p_details: profileData as any,
+      p_ip_address: null,
+      p_user_agent: navigator.userAgent
+    });
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(profileData)
+      .eq("id", userId)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Error updating profile:", error);
+      throw error;
+    }
+
+    // Update local state
+    if (authState.profile) {
+      authState = {
+        ...authState,
+        profile: {
+          ...authState.profile,
+          ...data,
+        },
+      };
+      notifySubscribers();
+    }
+
+    return data;
   } catch (error) {
     console.error("Error in updateUserProfile:", error);
     throw error;
   }
 }
 
-// Log user activity for audit purposes
-export async function logUserActivity(
-  userId: string,
-  activityType: 'registration' | 'login' | 'logout' | 'profile_update' | 'other',
-  details?: any
-): Promise<void> {
+// Check if user is authenticated
+export function isAuthenticated(): boolean {
+  return authState.isAuthenticated;
+}
+
+// Get current user
+export function getCurrentUser(): User | null {
+  return authState.user;
+}
+
+// Get current user profile
+export function getCurrentUserProfile(): UserProfile | null {
+  return authState.profile;
+}
+
+// Login with email and password
+export async function loginWithEmail(email: string, password: string): Promise<void> {
   try {
-    // Use a custom RPC function or direct SQL to insert the log
-    // This avoids the TypeScript errors with the schema
-    const { error } = await supabase.rpc('insert_user_activity_log', {
-      p_user_id: userId,
-      p_activity_type: activityType,
-      p_details: details || {},
-      p_ip_address: 'client-side', // IP collection should be done server-side for security
-      p_user_agent: navigator.userAgent
+    authState = { ...authState, loading: true, error: null };
+    notifySubscribers();
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
-    
+
     if (error) {
-      console.error("Error logging user activity:", error);
-      // Don't throw here, as this is non-critical logging
+      authState = { ...authState, loading: false, error: error.message };
+      notifySubscribers();
+      throw error;
     }
-  } catch (error) {
-    console.error("Error in logUserActivity:", error);
-    // Don't throw here, as this is non-critical logging
+
+    // Auth state will be updated by the onAuthStateChange listener
+  } catch (error: any) {
+    console.error("Login error:", error);
+    authState = { ...authState, loading: false, error: error.message };
+    notifySubscribers();
+    throw error;
   }
 }
 
-// Subscribe to auth state changes
-export function subscribeToAuthChanges(callback: (isLoggedIn: boolean) => void): () => void {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-    const isLoggedIn = !!session;
-    callback(isLoggedIn);
-  });
-  
-  return () => {
-    subscription.unsubscribe();
-  };
+// Sign up with email and password
+export async function signUpWithEmail(email: string, password: string, name: string): Promise<void> {
+  try {
+    authState = { ...authState, loading: true, error: null };
+    notifySubscribers();
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role: "user",
+        },
+      },
+    });
+
+    if (error) {
+      authState = { ...authState, loading: false, error: error.message };
+      notifySubscribers();
+      throw error;
+    }
+
+    // Auth state will be updated by the onAuthStateChange listener
+  } catch (error: any) {
+    console.error("Signup error:", error);
+    authState = { ...authState, loading: false, error: error.message };
+    notifySubscribers();
+    throw error;
+  }
 }
 
-// Check if user is authenticated
-export async function isUserAuthenticated(): Promise<boolean> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return !!session;
+// Logout
+export async function logout(): Promise<void> {
+  try {
+    authState = { ...authState, loading: true, error: null };
+    notifySubscribers();
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      authState = { ...authState, loading: false, error: error.message };
+      notifySubscribers();
+      throw error;
+    }
+
+    // Auth state will be updated by the onAuthStateChange listener
+  } catch (error: any) {
+    console.error("Logout error:", error);
+    authState = { ...authState, loading: false, error: error.message };
+    notifySubscribers();
+    throw error;
+  }
 }
