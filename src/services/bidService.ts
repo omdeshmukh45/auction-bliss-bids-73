@@ -1,333 +1,266 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { isAuthenticated } from "./apiService";
-import { Session, AuthError } from "@supabase/supabase-js";
 
-// Interface for bid history item
-export interface BidHistoryItem {
-  id: string;
-  amount: number;
-  auction_id: string;
-  bidder_id: string;
-  bidder_name: string;
-  time: string;
-  // For UI display
-  itemTitle?: string;
-  status?: "winning" | "outbid" | "won" | "lost";
-}
-
-// Interface for auction updates
-export interface AuctionUpdate {
-  id: string;
-  currentBid?: number;
-  nextMinimumBid?: number;
-  bids?: number;
-  bidHistory?: BidHistoryItem[];
-}
-
-// Place a bid in the database
-export async function placeBid(
-  auctionId: string,
-  auctionTitle: string,
-  amount: number
-): Promise<void> {
-  // Check authentication
-  const { data } = await supabase.auth.getSession();
-  const user = data.session?.user;
-  
-  if (!user) {
-    throw new Error("You must be logged in to place a bid");
-  }
-
+// Function to get user bid history
+export const getUserBidHistory = async () => {
   try {
-    // Get user profile for the bidder name
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('name')
-      .eq('id', user.id)
-      .single();
-
-    const bidderName = profile?.name || user.email || 'Anonymous';
-
-    // Insert the bid record
-    const { error: bidError } = await supabase
-      .from('bids')
-      .insert({
-        amount,
-        auction_id: auctionId,
-        bidder_id: user.id,
-        bidder_name: bidderName
-      });
-
-    if (bidError) {
-      console.error("Error placing bid:", bidError);
-      throw new Error(bidError.message);
-    }
-
-    // Log the bid activity
-    await supabase.rpc("log_user_activity", {
-      p_user_id: user.id,
-      p_activity_type: "place_bid" as string,
-      p_resource_id: bid.auction_id,
-      p_resource_type: "auction" as string,
-      p_details: { amount: bid.amount }
-    });
-
-    // Trigger local update for UI
-    const mockBidEvent = new StorageEvent('storage', {
-      key: `auction_bid_${auctionId}`,
-      newValue: JSON.stringify({
-        amount,
-        timestamp: new Date().toISOString(),
-      }),
-    });
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user?.id;
     
-    window.dispatchEvent(mockBidEvent);
-  } catch (error: any) {
-    console.error("Error in placeBid:", error);
-    throw error;
-  }
-}
-
-// Set up listener for auction changes (like new bids)
-export function listenToAuctionChanges(
-  auctionId: string,
-  onUpdate: (auction: AuctionUpdate) => void
-): () => void {
-  // Set up the initial channel subscription
-  const channel = supabase
-    .channel(`auction_updates:${auctionId}`)
-    .on('postgres_changes', { 
-      event: 'INSERT', 
-      schema: 'public', 
-      table: 'bids',
-      filter: `auction_id=eq.${auctionId}`
-    }, (payload) => {
-      // Get the new bid amount from the payload
-      const newBid = payload.new as BidHistoryItem;
-      
-      // Create an update object
-      const update: AuctionUpdate = {
-        id: auctionId,
-        currentBid: newBid.amount,
-        nextMinimumBid: newBid.amount + 250, // Increment by $250
-      };
-      
-      onUpdate(update);
-    })
-    .subscribe();
-
-  // Legacy storage event listener for demo purposes
-  const handleStorageChange = (event: StorageEvent) => {
-    if (event.key === `auction_bid_${auctionId}` && event.newValue) {
-      try {
-        const bidData = JSON.parse(event.newValue);
-        
-        const update: AuctionUpdate = {
-          id: auctionId,
-          currentBid: bidData.amount,
-          nextMinimumBid: bidData.amount + 250, // Increment by $250
-        };
-        
-        onUpdate(update);
-      } catch (error) {
-        console.error("Error processing auction update:", error);
-      }
+    if (!userId) {
+      throw new Error("User not authenticated");
     }
-  };
-  
-  window.addEventListener('storage', handleStorageChange);
-  
-  // Return cleanup function for both listeners
-  return () => {
-    window.removeEventListener('storage', handleStorageChange);
-    supabase.removeChannel(channel);
-  };
-}
-
-// Get bid history for a specific auction
-export async function getAuctionBidHistory(auctionId: string): Promise<BidHistoryItem[]> {
-  try {
+    
     const { data, error } = await supabase
-      .from('bids')
-      .select('*')
-      .eq('auction_id', auctionId)
-      .order('time', { ascending: false });
-    
+      .from("bids")
+      .select(`
+        id,
+        amount,
+        time,
+        auction_id,
+        auctions (
+          id,
+          title,
+          current_bid,
+          end_time,
+          status
+        )
+      `)
+      .eq("bidder_id", userId)
+      .order("time", { ascending: false });
+      
     if (error) {
       console.error("Error fetching bid history:", error);
       throw error;
     }
     
-    return data || [];
+    // Format the data for the UI
+    return data.map(item => ({
+      id: item.id,
+      bidAmount: item.amount,
+      date: item.time,
+      auctionId: item.auction_id,
+      itemTitle: item.auctions?.title || "Unknown Item",
+      currentBid: item.auctions?.current_bid,
+      endTime: item.auctions?.end_time,
+      status: getBidStatus(item.auctions?.current_bid, item.amount, item.auctions?.end_time, item.auctions?.status)
+    }));
+    
   } catch (error) {
-    console.error("Error in getAuctionBidHistory:", error);
+    console.error("Error in getUserBidHistory:", error);
     throw error;
   }
-}
+};
 
-// Get user's bid history
-export async function getUserBidHistory(): Promise<BidHistoryItem[]> {
+// Function to get items the user has won
+export const getUserWonItems = async () => {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
-    const user = sessionData.session?.user;
+    const userId = sessionData.session?.user?.id;
     
-    if (!user) {
-      throw new Error("User must be authenticated to get bid history");
+    if (!userId) {
+      throw new Error("User not authenticated");
     }
     
-    const { data: bids, error } = await supabase
-      .from('bids')
+    // Get auctions that have ended where the user is the highest bidder
+    const { data, error } = await supabase
+      .from("auctions")
       .select(`
-        *,
-        auctions!inner(title)
+        id,
+        title,
+        current_bid,
+        end_time,
+        bids!inner (
+          id,
+          bidder_id,
+          amount,
+          time
+        )
       `)
-      .eq('bidder_id', user.id)
-      .order('time', { ascending: false });
-    
+      .eq("bids.bidder_id", userId)
+      .eq("status", "ended")
+      .order("end_time", { ascending: false });
+      
     if (error) {
-      console.error("Error fetching user bid history:", error);
+      console.error("Error fetching won items:", error);
       throw error;
     }
     
-    // Transform the data to match the expected format
-    return (bids || []).map(bid => ({
-      id: bid.id,
-      amount: bid.amount,
-      auction_id: bid.auction_id,
-      bidder_id: bid.bidder_id,
-      bidder_name: bid.bidder_name,
-      time: bid.time,
-      itemTitle: bid.auctions?.title || 'Unknown Item',
-      // Determine status based on current data
-      status: 'bidding' as any // This would need logic to determine actual status
-    }));
+    // Filter to ensure we only get items where user's bid is the highest
+    const wonItems = data.filter(auction => {
+      const highestBid = Math.max(...auction.bids.map(bid => bid.amount));
+      const userHighestBid = Math.max(...auction.bids.filter(bid => bid.bidder_id === userId).map(bid => bid.amount));
+      return highestBid === userHighestBid && highestBid === auction.current_bid;
+    });
+    
+    // Format the data for the UI
+    return wonItems.map(item => {
+      const userBid = item.bids.find(bid => bid.bidder_id === userId);
+      return {
+        id: userBid?.id,
+        auctionId: item.id,
+        itemTitle: item.title,
+        bidAmount: userBid?.amount || item.current_bid,
+        date: item.end_time,
+        status: "won"
+      };
+    });
+    
   } catch (error) {
-    console.error("Error in getUserBidHistory:", error);
-    // Return mock data for demo purposes if there's an error
-    return MOCK_BID_HISTORY;
+    console.error("Error in getUserWonItems:", error);
+    throw error;
   }
-}
+};
 
-// Get user's won items (items where user has winning bid)
-export async function getUserWonItems(): Promise<BidHistoryItem[]> {
+// Function to listen to bid changes in real-time
+export const listenToUserBids = (callback: (bids: any[]) => void) => {
+  const { data: authData } = supabase.auth.getSession();
+  const userId = authData.session?.user?.id;
+  
+  if (!userId) {
+    console.warn("Cannot listen to bids: User not authenticated");
+    return () => {}; // Return empty unsubscribe function
+  }
+  
+  // Subscribe to bid changes
+  const subscription = supabase
+    .channel('bids_channel')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'bids',
+        filter: `bidder_id=eq.${userId}`
+      },
+      async () => {
+        // When data changes, fetch the updated bid history
+        try {
+          const bids = await getUserBidHistory();
+          callback(bids);
+        } catch (error) {
+          console.error("Error updating bids in real-time:", error);
+        }
+      }
+    )
+    .subscribe();
+  
+  // Return unsubscribe function
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+};
+
+// Function to place a bid on an auction
+export const placeBid = async (auctionId: string, amount: number) => {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const user = sessionData.session?.user;
     
     if (!user) {
-      throw new Error("User must be authenticated to get won items");
+      throw new Error("User not authenticated");
     }
     
-    // For now, just return the mocked won items since we need additional 
-    // logic to determine if a bid is winning
-    return MOCK_WON_ITEMS;
-  } catch (error) {
-    console.error("Error in getUserWonItems:", error);
-    return MOCK_WON_ITEMS;
-  }
-}
-
-// Listen to user's bids (real-time updates)
-export function listenToUserBids(callback: (bids: BidHistoryItem[]) => void): () => void {
-  // Get current user
-  const getCurrentUserBids = async () => {
-    try {
-      const bids = await getUserBidHistory();
-      callback(bids);
-    } catch (error) {
-      console.error("Error fetching user bids:", error);
-      callback(MOCK_BID_HISTORY); // Fallback to mock data
-    }
-  };
-
-  // Initial data load
-  getCurrentUserBids();
-
-  // Set up realtime subscription
-  const userPromise = supabase.auth.getSession();
-  
-  userPromise.then(({ data: sessionData }) => {
-    const user = sessionData.session?.user;
-    
-    if (!user) {
-      // Not authenticated, just use polling with mock data
-      const interval = setInterval(() => {
-        callback(MOCK_BID_HISTORY);
-      }, 30000);
+    // Get the auction details first to validate bid
+    const { data: auctionData, error: auctionError } = await supabase
+      .from("auctions")
+      .select("current_bid, min_bid_increment, status, end_time")
+      .eq("id", auctionId)
+      .single();
       
-      return () => clearInterval(interval);
+    if (auctionError) {
+      console.error("Error fetching auction:", auctionError);
+      throw auctionError;
     }
     
-    // Set up realtime subscription for authenticated users
-    const channel = supabase
-      .channel('user_bids')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'bids',
-        filter: `bidder_id=eq.${user.id}`
-      }, () => {
-        // Refetch all bids when a new one is added
-        getCurrentUserBids();
-      })
-      .subscribe();
+    // Validate the bid
+    if (auctionData.status !== "live") {
+      throw new Error("This auction is not active");
+    }
     
-    // Return cleanup function
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  });
-  
-  // Default return function
-  return () => {};
-}
-
-// Mock bid history data for fallback
-const MOCK_BID_HISTORY: BidHistoryItem[] = [
-  {
-    id: "bid-1",
-    auction_id: "auction-1",
-    bidder_id: "user-1",
-    bidder_name: "BidUser1",
-    amount: 1200,
-    time: "2023-04-01T14:22:00Z",
-    itemTitle: "Vintage Watch",
-    status: "winning"
-  },
-  {
-    id: "bid-2",
-    auction_id: "auction-2",
-    bidder_id: "user-1",
-    bidder_name: "BidUser1",
-    amount: 850,
-    time: "2023-03-28T09:15:00Z",
-    itemTitle: "Antique Vase",
-    status: "outbid"
-  },
-  {
-    id: "bid-3",
-    auction_id: "auction-3",
-    bidder_id: "user-1",
-    bidder_name: "BidUser1",
-    amount: 3500,
-    time: "2023-03-25T16:30:00Z",
-    itemTitle: "Classic Car Model",
-    status: "won"
-  },
-  {
-    id: "bid-4",
-    auction_id: "auction-4",
-    bidder_id: "user-1",
-    bidder_name: "BidUser1",
-    amount: 5000,
-    time: "2023-03-20T11:45:00Z",
-    itemTitle: "Rare Coin Collection",
-    status: "lost"
+    if (new Date(auctionData.end_time) < new Date()) {
+      throw new Error("This auction has ended");
+    }
+    
+    if (amount <= auctionData.current_bid) {
+      throw new Error(`Bid must be higher than the current bid (${auctionData.current_bid})`);
+    }
+    
+    if (amount < auctionData.current_bid + auctionData.min_bid_increment) {
+      throw new Error(`Minimum bid increment is ${auctionData.min_bid_increment}`);
+    }
+    
+    // Get the user profile to get the name
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("name, email")
+      .eq("id", user.id)
+      .single();
+      
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      throw profileError;
+    }
+    
+    const bidderName = profile.name || user.email || "Anonymous";
+    
+    // Place the bid
+    const { data: bidData, error: bidError } = await supabase
+      .from("bids")
+      .insert([
+        {
+          auction_id: auctionId,
+          bidder_id: user.id,
+          bidder_name: bidderName,
+          amount: amount,
+        }
+      ])
+      .select()
+      .single();
+      
+    if (bidError) {
+      console.error("Error placing bid:", bidError);
+      throw bidError;
+    }
+    
+    // Update the auction's current bid
+    const { error: updateError } = await supabase
+      .from("auctions")
+      .update({ current_bid: amount })
+      .eq("id", auctionId);
+      
+    if (updateError) {
+      console.error("Error updating auction current bid:", updateError);
+      throw updateError;
+    }
+    
+    // Log the bid activity
+    await supabase.rpc("log_user_activity", {
+      p_user_id: user.id,
+      p_activity_type: "place_bid",
+      p_resource_id: auctionId,
+      p_resource_type: "auction",
+      p_details: { amount: amount }
+    });
+    
+    return bidData;
+    
+  } catch (error) {
+    console.error("Error in placeBid:", error);
+    throw error;
   }
-];
+};
 
-// Mock won items data for fallback
-const MOCK_WON_ITEMS: BidHistoryItem[] = MOCK_BID_HISTORY.filter(
-  bid => bid.status === "won" || bid.status === "winning"
-);
+// Helper function to determine bid status
+const getBidStatus = (currentBid: number, bidAmount: number, endTime: string, auctionStatus: string) => {
+  const now = new Date();
+  const auctionEndTime = new Date(endTime);
+  
+  if (auctionStatus === "ended" || now > auctionEndTime) {
+    // Auction has ended
+    return currentBid === bidAmount ? "won" : "lost";
+  } else {
+    // Auction is still active
+    return currentBid === bidAmount ? "winning" : "outbid";
+  }
+};

@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,7 +22,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full" />
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p>Loading...</p>
         </div>
       </div>

@@ -61,7 +61,7 @@ const Profile = () => {
         email: profile.email || "",
         phone: profile.phone || "",
         address: profile.address || "",
-        avatar: profile.avatar || "",
+        avatar: profile.avatar || profile.avatar_url || "",
       });
     }
   }, [profile]);
@@ -224,7 +224,7 @@ const Profile = () => {
                     Upload New Photo
                   </Button>
                   <p className="text-xs text-muted-foreground mt-4">
-                    Member since: {profile.joinDate}
+                    Member since: {profile.joinDate || 'N/A'}
                   </p>
                 </CardContent>
               </Card>

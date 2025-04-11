@@ -1,11 +1,18 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 
 export interface UserProfile {
   id: string;
   email: string;
+  name?: string;
   full_name?: string;
   avatar_url?: string;
+  avatar?: string;
+  phone?: string;
+  address?: string;
+  joinDate?: string;
+  role?: string;
   // Add other profile fields as necessary
 }
 
@@ -206,9 +213,9 @@ export const signIn = async (email: string, password: string) => {
     if (data.user) {
       await supabase.rpc("log_user_activity", {
         p_user_id: data.user.id,
-        p_activity_type: "login" as string,
+        p_activity_type: "login",
         p_resource_id: null,
-        p_resource_type: "auth" as string,
+        p_resource_type: "auth",
         p_details: { method: "email" }
       });
     }
@@ -269,9 +276,9 @@ export const updatePassword = async (newPassword: string) => {
      if (data.user) {
       await supabase.rpc("log_user_activity", {
         p_user_id: data.user.id,
-        p_activity_type: "update_password" as string,
+        p_activity_type: "update_password",
         p_resource_id: null,
-        p_resource_type: "auth" as string,
+        p_resource_type: "auth",
         p_details: { method: "reset" }
       });
     }
@@ -294,3 +301,52 @@ export const getUserById = async (userId: string): Promise<User | null> => {
         return null;
     }
 };
+
+// Add missing exported functions
+export const loginUser = async (email: string, password: string) => {
+  try {
+    const { data, error } = await signIn(email, password);
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+};
+
+export const registerUser = async (email: string, password: string, name: string, role: string) => {
+  try {
+    const { user, error } = await signUp(email, password);
+    
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    
+    if (user?.id) {
+      // Update the profile with additional information
+      await updateUserProfile(user.id, { 
+        name, 
+        role,
+        joinDate: new Date().toISOString().split('T')[0]
+      });
+    }
+    
+    return { success: true, user };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+};
+
+export const logoutUser = async () => {
+  try {
+    await signOut();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+};
+
+// Export signIn and signOut with alias names for backward compatibility
+export { signIn as signInWithEmail };
+export { signOut as signOutUser };
