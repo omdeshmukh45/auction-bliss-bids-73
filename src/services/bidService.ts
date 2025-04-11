@@ -180,14 +180,16 @@ export const listenToUserBids = (callback: (bids: any[]) => void) => {
     return data.session?.user?.id;
   };
 
+  let subscription: any;
+  
   fetchUserSession().then(userId => {
     if (!userId) {
       console.warn("Cannot listen to bids: User not authenticated");
-      return () => {}; // Return empty unsubscribe function
+      return;
     }
     
     // Subscribe to bid changes
-    const subscription = supabase
+    subscription = supabase
       .channel('bids_channel')
       .on(
         'postgres_changes',
@@ -208,15 +210,14 @@ export const listenToUserBids = (callback: (bids: any[]) => void) => {
         }
       )
       .subscribe();
-    
-    // Return unsubscribe function
-    return () => {
-      supabase.removeChannel(subscription);
-    };
   });
   
-  // Default return to satisfy TypeScript
-  return () => {};
+  // Return unsubscribe function
+  return () => {
+    if (subscription) {
+      supabase.removeChannel(subscription);
+    }
+  };
 };
 
 // Function to place a bid on an auction
@@ -289,17 +290,6 @@ export const placeBid = async (auctionId: string, amount: number) => {
     if (bidError) {
       console.error("Error placing bid:", bidError);
       throw bidError;
-    }
-    
-    // Update the auction's current bid
-    const { error: updateError } = await supabase
-      .from("auctions")
-      .update({ current_bid: amount })
-      .eq("id", auctionId);
-      
-    if (updateError) {
-      console.error("Error updating auction current bid:", updateError);
-      throw updateError;
     }
     
     // Log the bid activity

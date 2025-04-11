@@ -163,36 +163,10 @@ export const signUp = async (email: string, password: string) => {
       throw new Error(error.message);
     }
 
-    if (data.user) {
-      // Create a user profile in the profiles table
-      await createUserProfile(data.user.id, {
-        email: data.user.email || email,
-      });
-    }
-
+    // With our Supabase trigger, profile creation is automatic
     return data;
   } catch (error: any) {
     console.error("Error in signUp:", error.message);
-    throw error;
-  }
-};
-
-// Function to create user profile
-const createUserProfile = async (userId: string, profileData: Partial<UserProfile>) => {
-  try {
-    const { error } = await supabase.from("profiles").insert([
-      {
-        id: userId,
-        ...profileData,
-      },
-    ]);
-
-    if (error) {
-      console.error("Error creating user profile:", error);
-      throw error;
-    }
-  } catch (error) {
-    console.error("Error in createUserProfile:", error);
     throw error;
   }
 };
@@ -211,12 +185,10 @@ export const signIn = async (email: string, password: string) => {
     }
 
     if (data.user) {
+      // Using the RPC function we created in SQL
       await supabase.rpc("log_user_activity", {
         p_user_id: data.user.id,
-        p_activity_type: "login",
-        p_resource_id: null,
-        p_resource_type: "auth",
-        p_details: { method: "email" }
+        p_activity_type: "login"
       });
     }
 
@@ -245,7 +217,7 @@ export const signOut = async () => {
 // Function to handle password reset request
 export const resetPassword = async (email: string) => {
   try {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/update-password`,
     });
 
@@ -254,7 +226,7 @@ export const resetPassword = async (email: string) => {
       throw new Error(error.message);
     }
 
-    return data;
+    return { success: true };
   } catch (error: any) {
     console.error("Error in resetPassword:", error.message);
     throw error;
@@ -274,12 +246,10 @@ export const updatePassword = async (newPassword: string) => {
     }
 
     if (data.user) {
+      // Using the RPC function we created in SQL
       await supabase.rpc("log_user_activity", {
         p_user_id: data.user.id,
-        p_activity_type: "update_password",
-        p_resource_id: null,
-        p_resource_type: "auth",
-        p_details: { method: "reset" }
+        p_activity_type: "update_password"
       });
     }
 
@@ -293,9 +263,18 @@ export const updatePassword = async (newPassword: string) => {
 // Function to get user by ID (Admin only)
 export const getUserById = async (userId: string): Promise<User | null> => {
     try {
-        const { data, error } = await supabase.auth.admin.getUserById(userId);
+        // Note: This requires admin-level access which should be used cautiously
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error("Not authenticated");
+        
+        const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .single();
+            
         if (error) throw error;
-        return data.user;
+        return userData.user;
     } catch (error) {
         console.error("Error fetching user by ID:", error);
         return null;
