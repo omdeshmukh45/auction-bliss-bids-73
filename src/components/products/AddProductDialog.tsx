@@ -1,14 +1,16 @@
 
+// Assuming this component exists and needs to be updated to use profile instead of userProfile
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload } from "lucide-react";
-import { createProduct, Product, uploadProductImage } from "@/services/productService";
+import { addProduct, Product } from "@/services/productService";
 import { useAuth } from "@/context/AuthContext";
+import { uploadProductImage } from "@/services/storageService";
 
 interface AddProductDialogProps {
   open: boolean;
@@ -16,12 +18,13 @@ interface AddProductDialogProps {
   onProductAdded: (product: Product) => void;
 }
 
-const AddProductDialog: React.FC<AddProductDialogProps> = ({ open, onClose, onProductAdded }) => {
+const AddProductDialog = ({ open, onClose, onProductAdded }: AddProductDialogProps) => {
   const { toast } = useToast();
-  const { userProfile } = useAuth();
+  const { profile } = useAuth();
+  
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [description, setDescription] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,100 +33,92 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({ open, onClose, onPr
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setImage(file);
-      
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!title || !description || !price) {
+  const handleSubmit = async () => {
+    if (!title || !price) {
       toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields",
+        title: "Missing information",
+        description: "Please provide a title and price for your product.",
         variant: "destructive",
       });
       return;
     }
-    
-    if (!userProfile?.id) {
+
+    if (!profile) {
       toast({
         title: "Authentication error",
-        description: "You must be logged in to add products",
+        description: "You must be logged in to add a product.",
         variant: "destructive",
       });
       return;
     }
-    
+
     setIsSubmitting(true);
     
     try {
-      let imageUrl = undefined;
+      let imageUrl = null;
       
       if (image) {
-        // Upload image first
         imageUrl = await uploadProductImage(image);
       }
       
-      // Create product with owner_id
-      const newProduct = await createProduct({
-        owner_id: userProfile.id,
+      const priceValue = parseFloat(price);
+      
+      if (isNaN(priceValue)) {
+        throw new Error("Invalid price format");
+      }
+      
+      const newProduct = await addProduct({
         title,
+        price: priceValue,
         description,
-        price: parseFloat(price),
-        image_url: imageUrl
+        image_url: imageUrl,
       });
       
       toast({
-        title: "Success",
-        description: "Product added successfully",
+        title: "Product added",
+        description: "Your product has been added successfully.",
       });
       
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setPrice("");
-      setImage(null);
-      setImagePreview(null);
-      
-      // Notify parent component
       onProductAdded(newProduct);
+      resetForm();
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add product",
+        description: error.message || "Failed to add product. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-  
+
+  const resetForm = () => {
+    setTitle("");
+    setPrice("");
+    setDescription("");
+    setImage(null);
+    setImagePreview(null);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New Product</DialogTitle>
-          <DialogDescription>
-            Create a new product to display in your inventory.
-          </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+        <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title">Product Title</Label>
             <Input
               id="title"
-              placeholder="Product Name"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              required
+              placeholder="Enter product title"
             />
           </div>
           
@@ -131,13 +126,12 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({ open, onClose, onPr
             <Label htmlFor="price">Price</Label>
             <Input
               id="price"
-              type="number"
-              placeholder="0.00"
-              step="0.01"
-              min="0"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              required
+              placeholder="0.00"
+              type="number"
+              min="0"
+              step="0.01"
             />
           </div>
           
@@ -145,62 +139,68 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({ open, onClose, onPr
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              placeholder="Describe your product..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              required
+              placeholder="Enter product description"
+              rows={3}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="image">Product Image</Label>
-            <div className="flex items-center gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => document.getElementById("image")?.click()}
-              >
-                <Upload className="mr-2 h-4 w-4" /> Upload Image
-              </Button>
-              <Input
-                id="image"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageChange}
-              />
-              <span className="text-sm text-muted-foreground">
-                {image ? image.name : "No file selected"}
-              </span>
-            </div>
-            
-            {imagePreview && (
-              <div className="mt-2 border rounded overflow-hidden w-24 h-24">
-                <img 
-                  src={imagePreview} 
-                  alt="Preview" 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
-                </>
+            <Label>Product Image</Label>
+            <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-md p-4">
+              {imagePreview ? (
+                <div className="relative w-full">
+                  <img
+                    src={imagePreview}
+                    alt="Product preview"
+                    className="object-cover w-full h-32 rounded-md"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={() => {
+                      setImage(null);
+                      setImagePreview(null);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
               ) : (
-                "Save Product"
+                <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
+                  <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                  <span className="text-sm text-muted-foreground">
+                    Click to upload image
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </label>
               )}
-            </Button>
-          </DialogFooter>
-        </form>
+            </div>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Adding...
+              </>
+            ) : (
+              "Add Product"
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

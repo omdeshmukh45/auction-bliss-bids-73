@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -114,7 +113,7 @@ const Login = () => {
     setIsSigningUp(true);
     
     try {
-      const result = await registerUser(signupName, signupEmail, signupPassword, role);
+      const result = await registerUser(signupEmail, signupPassword, signupName, role);
       
       if (result.success) {
         toast({

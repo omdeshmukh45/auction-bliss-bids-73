@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,7 @@ import { logoutUser } from "@/services/authService";
 import { useToast } from "@/hooks/use-toast";
 
 const Header = () => {
-  const { isAuthenticated, userProfile, isLoading } = useAuth();
+  const { isAuthenticated, profile, isLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -43,7 +42,6 @@ const Header = () => {
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-2">
-          {/* Mobile menu */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden">
@@ -88,14 +86,12 @@ const Header = () => {
             </SheetContent>
           </Sheet>
 
-          {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
             <ShoppingBag className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold">AuctionBliss</span>
           </Link>
         </div>
 
-        {/* Desktop navigation */}
         <nav className="hidden md:flex items-center gap-6">
           <Link 
             to="/" 
@@ -163,7 +159,7 @@ const Header = () => {
               </Link>
               <Link to="/profile">
                 <Button variant="outline" className="hidden md:inline-flex gap-2">
-                  <User className="h-4 w-4" /> {userProfile?.name?.split(' ')[0] || 'My Profile'}
+                  <User className="h-4 w-4" /> {profile?.name?.split(' ')[0] || 'My Profile'}
                 </Button>
               </Link>
               <Button 

@@ -9,6 +9,10 @@ export interface UserProfile {
   email: string;
   role: string;
   created_at: string;
+  phone?: string;
+  address?: string;
+  avatar?: string;
+  joinDate?: string;
 }
 
 // Type definition for authentication state
@@ -20,10 +24,17 @@ export interface AuthState {
   isLoading: boolean;
 }
 
+// Type for login/register response
+export interface AuthResponse {
+  user: User | null;
+  session: Session | null;
+  success: boolean;
+  message?: string;
+}
+
 // Get current user (synchronous, from stored session)
 export function getCurrentUser(): User | null {
-  const session = supabase.auth.getSession();
-  return session ? supabase.auth.getUser().then(({ data }) => data.user) : null;
+  return supabase.auth.getUser().then(({ data }) => data.user);
 }
 
 // Get user profile by ID
@@ -48,7 +59,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
 }
 
 // Login user with email and password
-export async function loginUser(email: string, password: string): Promise<{ user: User | null; session: Session | null }> {
+export async function loginUser(email: string, password: string): Promise<AuthResponse> {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -57,7 +68,12 @@ export async function loginUser(email: string, password: string): Promise<{ user
 
     if (error) {
       console.error("Error logging in:", error);
-      throw error;
+      return {
+        user: null,
+        session: null,
+        success: false,
+        message: error.message
+      };
     }
 
     // Log the login activity
@@ -72,15 +88,21 @@ export async function loginUser(email: string, password: string): Promise<{ user
     return {
       user: data.user,
       session: data.session,
+      success: true
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in loginUser:", error);
-    throw error;
+    return {
+      user: null,
+      session: null,
+      success: false,
+      message: error.message || "Unknown error occurred"
+    };
   }
 }
 
 // Register a new user
-export async function registerUser(email: string, password: string, name: string): Promise<{ user: User | null; session: Session | null }> {
+export async function registerUser(email: string, password: string, name: string, role: string = 'user'): Promise<AuthResponse> {
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -88,13 +110,19 @@ export async function registerUser(email: string, password: string, name: string
       options: {
         data: {
           name,
+          role,
         },
       },
     });
 
     if (error) {
       console.error("Error registering user:", error);
-      throw error;
+      return {
+        user: null,
+        session: null,
+        success: false,
+        message: error.message
+      };
     }
 
     // Log the registration activity
@@ -109,10 +137,16 @@ export async function registerUser(email: string, password: string, name: string
     return {
       user: data.user,
       session: data.session,
+      success: true
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in registerUser:", error);
-    throw error;
+    return {
+      user: null,
+      session: null,
+      success: false,
+      message: error.message || "Unknown error occurred"
+    };
   }
 }
 
@@ -230,6 +264,8 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     const validUpdates: any = {};
     if (updates.name) validUpdates.name = updates.name;
     if (updates.email) validUpdates.email = updates.email;
+    if (updates.phone) validUpdates.phone = updates.phone;
+    if (updates.address) validUpdates.address = updates.address;
     
     const { data, error } = await supabase
       .from("profiles")

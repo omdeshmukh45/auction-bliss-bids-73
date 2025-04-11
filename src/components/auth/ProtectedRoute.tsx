@@ -2,7 +2,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { AuthLoadingScreen } from '@/context/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,7 +18,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }, [isAuthenticated, isLoading, navigate]);
 
   if (isLoading) {
-    return <AuthLoadingScreen />;
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full" />
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {

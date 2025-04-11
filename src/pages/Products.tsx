@@ -14,7 +14,7 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 const Products = () => {
   const { toast } = useToast();
-  const { userProfile } = useAuth();
+  const { profile } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);

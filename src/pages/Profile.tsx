@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -33,7 +34,7 @@ import { Loader2 } from "lucide-react";
 const Profile = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { isAuthenticated, userProfile, isLoading, refreshUserProfile } = useAuth();
+  const { isAuthenticated, profile, user, isLoading, refreshUserProfile } = useAuth();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -55,16 +56,16 @@ const Profile = () => {
   }, [isAuthenticated, isLoading, navigate]);
 
   useEffect(() => {
-    if (userProfile) {
+    if (profile) {
       setFormData({
-        name: userProfile.name || "",
-        email: userProfile.email || "",
-        phone: userProfile.phone || "",
-        address: userProfile.address || "",
-        avatar: userProfile.avatar || "",
+        name: profile.name || "",
+        email: profile.email || "",
+        phone: profile.phone || "",
+        address: profile.address || "",
+        avatar: profile.avatar || "",
       });
     }
-  }, [userProfile]);
+  }, [profile]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -115,9 +116,11 @@ const Profile = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!user) return;
+    
     setIsUpdatingProfile(true);
     try {
-      await updateUserProfile({
+      await updateUserProfile(user.id, {
         name: formData.name,
         phone: formData.phone,
         address: formData.address,
@@ -185,7 +188,7 @@ const Profile = () => {
     );
   }
 
-  if (!isAuthenticated || !userProfile) {
+  if (!isAuthenticated || !profile) {
     return null; // Will redirect via useEffect
   }
 
