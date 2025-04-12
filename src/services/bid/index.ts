@@ -7,12 +7,20 @@ export * from "./bidActionService";
 export * from "./wonItemsService";
 
 // For backward compatibility
-export { 
-  BidHistoryItem,
-  getUserBidHistory,
-  getAuctionBidHistory,
-  getUserWonItems,
-  listenToAuctionChanges,
-  listenToUserBids,
-  placeBid
+export type { 
+  BidHistoryItem 
 } from "./types";
+export { 
+  getUserBidHistory,
+  getAuctionBidHistory 
+} from "./bidHistoryService";
+export { 
+  getUserWonItems 
+} from "./wonItemsService";
+export { 
+  listenToAuctionChanges,
+  listenToUserBids 
+} from "./bidListenerService";
+export { 
+  placeBid 
+} from "./bidActionService";

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload } from "lucide-react";
-import { createProduct, Product } from "@/services/productService";
+import { createProduct, Product } from "@/services/product";
 import { useAuth } from "@/context/AuthContext";
 import { uploadProductImage } from "@/services/storageService";
 

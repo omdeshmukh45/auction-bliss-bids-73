@@ -1,90 +1,79 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-// Function to place a bid on an auction
-export const placeBid = async (auctionId: string, amount: number): Promise<any> => {
+// Place a bid on an auction
+export async function placeBid(auctionId: string, amount: number) {
   try {
-    const { data: session } = await supabase.auth.getSession();
-    const user = session.session?.user;
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user;
     
     if (!user) {
       throw new Error("User not authenticated");
     }
-    
-    // Get the auction details first to validate bid
-    const { data: auctionData, error: auctionError } = await supabase
-      .from("auctions")
-      .select("current_bid, min_bid_increment, status, end_time")
-      .eq("id", auctionId)
-      .single();
-      
-    if (auctionError) {
-      console.error("Error fetching auction:", auctionError);
-      throw auctionError;
-    }
-    
-    // Validate the bid
-    if (auctionData.status !== "live") {
-      throw new Error("This auction is not active");
-    }
-    
-    if (new Date(auctionData.end_time) < new Date()) {
-      throw new Error("This auction has ended");
-    }
-    
-    if (amount <= auctionData.current_bid) {
-      throw new Error(`Bid must be higher than the current bid (${auctionData.current_bid})`);
-    }
-    
-    if (amount < auctionData.current_bid + auctionData.min_bid_increment) {
-      throw new Error(`Minimum bid increment is ${auctionData.min_bid_increment}`);
-    }
-    
-    // Get the user profile to get the name
+
+    // First get the user's name
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("name, email")
+      .select("name")
       .eq("id", user.id)
       .single();
-      
+
     if (profileError) {
-      console.error("Error fetching profile:", profileError);
       throw profileError;
     }
-    
-    const bidderName = profile.name || user.email || "Anonymous";
-    
-    // Place the bid
-    const { data: bidData, error: bidError } = await supabase
+
+    // Then get the current auction details
+    const { data: auction, error: auctionError } = await supabase
+      .from("auctions")
+      .select("current_bid, min_bid_increment")
+      .eq("id", auctionId)
+      .single();
+
+    if (auctionError) {
+      throw auctionError;
+    }
+
+    // Validate the bid amount
+    if (amount <= auction.current_bid) {
+      throw new Error(
+        `Your bid must be higher than the current bid of ${auction.current_bid}`
+      );
+    }
+
+    if (amount < auction.current_bid + auction.min_bid_increment) {
+      throw new Error(
+        `Your bid must be at least ${auction.current_bid + auction.min_bid_increment}`
+      );
+    }
+
+    // Insert the bid
+    const { data: bid, error: bidError } = await supabase
       .from("bids")
-      .insert([
-        {
-          auction_id: auctionId,
-          bidder_id: user.id,
-          bidder_name: bidderName,
-          amount: amount,
-        }
-      ])
+      .insert({
+        auction_id: auctionId,
+        bidder_id: user.id,
+        bidder_name: profile.name || "Anonymous",
+        amount: amount,
+      })
       .select()
       .single();
-      
+
     if (bidError) {
-      console.error("Error placing bid:", bidError);
       throw bidError;
     }
-    
+
     // Log the bid activity
-    await supabase.rpc("log_user_activity", {
+    await supabase.rpc("log_product_activity", {
       p_user_id: user.id,
       p_activity_type: "place_bid",
       p_resource_id: auctionId,
-      p_resource_type: "auction"
+      p_resource_type: "auction",
+      p_details: { bid_amount: amount }
     });
-    
-    return bidData;
-    
+
+    return bid;
   } catch (error) {
     console.error("Error in placeBid:", error);
     throw error;
   }
-};
+}

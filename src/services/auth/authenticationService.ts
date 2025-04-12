@@ -1,29 +1,50 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { AuthError, SignUpResponse, SignInResponse } from "./types";
 
-// Function to handle user sign-up
-export const signUp = async (email: string, password: string) => {
+export async function signUp(
+  email: string,
+  password: string,
+  metadata: { name: string; role?: string }
+): Promise<SignUpResponse> {
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: metadata,
+      },
     });
 
     if (error) {
-      console.error("Error signing up:", error.message);
-      throw new Error(error.message);
+      return { success: false, error: error.message };
     }
 
-    // With our Supabase trigger, profile creation is automatic
-    return data;
-  } catch (error: any) {
-    console.error("Error in signUp:", error.message);
-    throw error;
-  }
-};
+    // Log signup activity
+    if (data.user) {
+      await supabase.rpc("log_product_activity", {
+        p_user_id: data.user.id,
+        p_activity_type: "user_signup",
+        p_resource_id: data.user.id,
+        p_resource_type: "user",
+        p_details: { email: email }
+      });
+    }
 
-// Function to handle user sign-in
-export const signIn = async (email: string, password: string) => {
+    return { success: true, data };
+  } catch (error) {
+    console.error("Sign up error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "An unknown error occurred",
+    };
+  }
+}
+
+export async function signIn(
+  email: string,
+  password: string
+): Promise<SignInResponse> {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -31,82 +52,86 @@ export const signIn = async (email: string, password: string) => {
     });
 
     if (error) {
-      console.error("Error signing in:", error.message);
-      throw new Error(error.message);
+      return { success: false, error: error.message };
     }
 
+    // Log signin activity
     if (data.user) {
-      // Using the RPC function we created in SQL
-      await supabase.rpc("log_user_activity", {
+      await supabase.rpc("log_product_activity", {
         p_user_id: data.user.id,
-        p_activity_type: "login"
+        p_activity_type: "user_signin",
+        p_resource_id: data.user.id,
+        p_resource_type: "user",
+        p_details: { email: email }
       });
     }
 
-    return data;
-  } catch (error: any) {
-    console.error("Error in signIn:", error.message);
-    throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error("Sign in error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "An unknown error occurred",
+    };
   }
-};
+}
 
-// Function to handle user sign-out
-export const signOut = async () => {
+export async function signOut(): Promise<{ success: boolean; error?: string }> {
   try {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      console.error("Error signing out:", error.message);
-      throw new Error(error.message);
-    }
-  } catch (error: any) {
-    console.error("Error in signOut:", error.message);
-    throw error;
-  }
-};
-
-// Function to handle password reset request
-export const resetPassword = async (email: string) => {
-  try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
-    });
-
-    if (error) {
-      console.error("Error requesting password reset:", error.message);
-      throw new Error(error.message);
+      return { success: false, error: error.message };
     }
 
     return { success: true };
-  } catch (error: any) {
-    console.error("Error in resetPassword:", error.message);
-    throw error;
+  } catch (error) {
+    console.error("Sign out error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "An unknown error occurred",
+    };
   }
-};
+}
 
-// Function to handle password update
-export const updatePassword = async (newPassword: string) => {
+export async function resetPassword(
+  email: string
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword,
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) {
-      console.error("Error updating password:", error.message);
-      throw new Error(error.message);
+      return { success: false, error: error.message };
     }
 
-    if (data.user) {
-      // Using the RPC function we created in SQL
-      await supabase.rpc("log_user_activity", {
-        p_user_id: data.user.id,
-        p_activity_type: "update_password"
-      });
-    }
-
-    return data;
-  } catch (error: any) {
-    console.error("Error in updatePassword:", error.message);
-    throw error;
+    return { success: true };
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "An unknown error occurred",
+    };
   }
-};
+}
+
+export async function updatePassword(
+  password: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Update password error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "An unknown error occurred",
+    };
+  }
+}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, Edit, Eye } from "lucide-react";
-import { getUserProducts, deleteProduct, Product } from "@/services/productService";
+import { getUserProducts, deleteProduct, Product } from "@/services/product";
 import { useAuth } from "@/context/AuthContext";
 import { formatPriceDisplay } from "@/utils/currency";
 import { Link } from "react-router-dom";

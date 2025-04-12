@@ -9,13 +9,4 @@ export interface BidHistoryItem {
   time: string;
 }
 
-// For backward compatibility
-export { 
-  getUserBidHistory,
-  getAuctionBidHistory,
-  getUserWonItems,
-  listenToAuctionChanges,
-  listenToUserBids,
-  placeBid
-} from "./bidHistoryService";
-export { placeBid as placeBidAction } from "./bidActionService";
+// No re-exports here, they're in the index.ts file
