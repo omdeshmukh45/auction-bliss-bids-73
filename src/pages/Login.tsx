@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { loginUser, registerUser } from "@/services/authService";
+import { loginUser, registerUser } from "@/services/auth";
 import Layout from "@/components/layout/Layout";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 

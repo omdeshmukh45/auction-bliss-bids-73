@@ -1,21 +1,18 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { setupAuthListener, UserProfile } from "@/services/authService";
+import { setupAuthListener, UserProfile, getUserProfile } from "@/services/auth";
 import { Loader2 } from "lucide-react";
 
-// Define the shape of the auth context
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  userProfile: UserProfile | null; // Adding userProfile alias for backward compatibility
-  refreshUserProfile: () => Promise<void>; // Add refresh method
+  userProfile: UserProfile | null;
+  refreshUserProfile: () => Promise<void>;
 }
 
-// Create the context with default values
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
@@ -26,10 +23,8 @@ const AuthContext = createContext<AuthContextType>({
   refreshUserProfile: async () => {},
 });
 
-// Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext);
 
-// Loading screen component
 export const AuthLoadingScreen: React.FC = () => {
   return (
     <div className="flex justify-center items-center min-h-[60vh]">
@@ -41,16 +36,13 @@ export const AuthLoadingScreen: React.FC = () => {
   );
 };
 
-// Auth provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // State for auth data
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Function to refresh user profile
   const refreshUserProfile = async () => {
     if (user) {
       try {
@@ -62,7 +54,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Set up auth listener on mount
   useEffect(() => {
     const unsubscribe = setupAuthListener((authState) => {
       setUser(authState.user);
@@ -72,7 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(authState.isLoading);
     });
 
-    // Clean up on unmount
     return () => {
       unsubscribe();
     };
@@ -86,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         profile,
         isAuthenticated,
         isLoading,
-        userProfile: profile, // Alias profile as userProfile for backward compatibility
+        userProfile: profile,
         refreshUserProfile,
       }}
     >
@@ -94,6 +84,3 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
-
-// Import getUserProfile function from authService.ts
-import { getUserProfile } from "@/services/authService";

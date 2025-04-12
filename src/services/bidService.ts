@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Define BidHistoryItem interface
@@ -221,7 +220,7 @@ export const listenToUserBids = (callback: (bids: any[]) => void) => {
 };
 
 // Function to place a bid on an auction
-export const placeBid = async (auctionId: string, amount: number) => {
+export const placeBid = async (auctionId: string, amount: number): Promise<any> => {
   try {
     const { data: session } = await supabase.auth.getSession();
     const user = session.session?.user;
@@ -297,8 +296,7 @@ export const placeBid = async (auctionId: string, amount: number) => {
       p_user_id: user.id,
       p_activity_type: "place_bid",
       p_resource_id: auctionId,
-      p_resource_type: "auction",
-      p_details: { amount }
+      p_resource_type: "auction"
     });
     
     return bidData;

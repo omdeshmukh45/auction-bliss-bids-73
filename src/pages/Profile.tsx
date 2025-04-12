@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -26,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatPriceDisplay } from "@/utils/currency";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import { updateUserProfile, logoutUser } from "@/services/authService";
+import { updateUserProfile, logoutUser } from "@/services/auth";
 import { getUserBidHistory, getUserWonItems, listenToUserBids } from "@/services/bidService";
 import { Loader2 } from "lucide-react";
 

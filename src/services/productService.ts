@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Product {
@@ -108,7 +107,7 @@ export async function getProductById(id: string): Promise<Product | null> {
 }
 
 // Create a new product
-export async function createProduct(product: Omit<Product, "id" | "created_at">): Promise<Product> {
+export const createProduct = async (productData: ProductData): Promise<Product | null> => {
   try {
     const { data: userData } = await supabase.auth.getSession();
     const user = userData.session?.user;
@@ -120,7 +119,7 @@ export async function createProduct(product: Omit<Product, "id" | "created_at">)
     const { data, error } = await supabase
       .from("products")
       .insert({
-        ...product,
+        ...productData,
         owner_id: user.id,
       })
       .select()
@@ -139,9 +138,8 @@ export async function createProduct(product: Omit<Product, "id" | "created_at">)
     await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
       p_activity_type: "create_product",
-      p_resource_id: data.id,
-      p_resource_type: "product",
-      p_details: { title: product.title, price: product.price }
+      p_resource_id: data[0].id,
+      p_resource_type: "product"
     });
 
     return data;
@@ -149,10 +147,10 @@ export async function createProduct(product: Omit<Product, "id" | "created_at">)
     console.error("Error in createProduct:", error);
     throw error;
   }
-}
+};
 
 // Update an existing product
-export async function updateProduct(id: string, updates: Partial<Omit<Product, "id" | "owner_id" | "created_at">>): Promise<Product> {
+export const updateProduct = async (productId: string, updates: Partial<ProductData>): Promise<Product | null> => {
   try {
     const { data: userData } = await supabase.auth.getSession();
     const user = userData.session?.user;
@@ -165,7 +163,7 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
     const { data: product } = await supabase
       .from("products")
       .select("owner_id")
-      .eq("id", id)
+      .eq("id", productId)
       .single();
 
     if (!product || product.owner_id !== user.id) {
@@ -175,7 +173,7 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
     const { data, error } = await supabase
       .from("products")
       .update(updates)
-      .eq("id", id)
+      .eq("id", productId)
       .select()
       .single();
 
@@ -192,9 +190,8 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
     await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
       p_activity_type: "update_product",
-      p_resource_id: id,
-      p_resource_type: "product",
-      p_details: updates
+      p_resource_id: productId,
+      p_resource_type: "product"
     });
 
     return data;
@@ -202,10 +199,10 @@ export async function updateProduct(id: string, updates: Partial<Omit<Product, "
     console.error("Error in updateProduct:", error);
     throw error;
   }
-}
+};
 
 // Delete a product
-export async function deleteProduct(id: string): Promise<void> {
+export const deleteProduct = async (productId: string): Promise<void> => {
   try {
     const { data: userData } = await supabase.auth.getSession();
     const user = userData.session?.user;
@@ -218,7 +215,7 @@ export async function deleteProduct(id: string): Promise<void> {
     const { data: product } = await supabase
       .from("products")
       .select("owner_id")
-      .eq("id", id)
+      .eq("id", productId)
       .single();
 
     if (!product || product.owner_id !== user.id) {
@@ -229,12 +226,11 @@ export async function deleteProduct(id: string): Promise<void> {
     await supabase.rpc("log_user_activity", {
       p_user_id: user.id,
       p_activity_type: "delete_product",
-      p_resource_id: id,
-      p_resource_type: "product",
-      p_details: { product_id: id }
+      p_resource_id: productId,
+      p_resource_type: "product"
     });
 
-    const { error } = await supabase.from("products").delete().eq("id", id);
+    const { error } = await supabase.from("products").delete().eq("id", productId);
 
     if (error) {
       console.error("Error deleting product:", error);
@@ -244,7 +240,7 @@ export async function deleteProduct(id: string): Promise<void> {
     console.error("Error in deleteProduct:", error);
     throw error;
   }
-}
+};
 
 // Upload product image
 export async function uploadProductImage(file: File): Promise<string> {

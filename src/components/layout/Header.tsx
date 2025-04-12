@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { Search, Menu, ShoppingBag, LogIn, Bell, User, Heart, Package } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { logoutUser } from "@/services/authService";
+import { logoutUser } from "@/services/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const Header = () => {
