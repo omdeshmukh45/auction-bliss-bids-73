@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -48,6 +47,7 @@ const Profile = () => {
   const [wonItems, setWonItems] = useState<any[]>([]);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isFetchingBids, setIsFetchingBids] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -115,16 +115,12 @@ const Profile = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!user) return;
-    
-    setIsUpdatingProfile(true);
+    setIsSubmitting(true);
     try {
-      await updateUserProfile(user.id, {
-        name: formData.name,
-        phone: formData.phone,
-        address: formData.address,
-      });
+      if (!profile) throw new Error("No profile found");
+      
+      const updatedProfile = await updateProfile(profile.id, { name });
+      setFormData(prev => ({ ...prev, name: updatedProfile.name }));
       
       await refreshUserProfile();
       
@@ -139,7 +135,7 @@ const Profile = () => {
         variant: "destructive",
       });
     } finally {
-      setIsUpdatingProfile(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -282,8 +278,8 @@ const Profile = () => {
                     </div>
 
                     <div className="flex justify-end">
-                      <Button type="submit" disabled={isUpdatingProfile}>
-                        {isUpdatingProfile ? (
+                      <Button type="submit" disabled={isUpdatingProfile || isSubmitting}>
+                        {isUpdatingProfile || isSubmitting ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Saving...

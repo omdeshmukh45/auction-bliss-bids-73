@@ -27,9 +27,4 @@ export interface ProductFilter {
   sortOrder?: "asc" | "desc";
 }
 
-// Re-export everything from the individual modules for backwards compatibility
-export type { 
-  ProductListService,
-  ProductDetailService,
-  ProductManagementService
-} from "./productListService";
+// No interface re-exports here, they're defined in their respective service files

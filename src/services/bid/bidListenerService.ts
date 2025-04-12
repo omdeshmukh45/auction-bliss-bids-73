@@ -1,21 +1,23 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { BidHistoryItem } from "./types";
 
-// Listen to changes in an auction
-export function listenToAuctionChanges(auctionId: string, onUpdate: () => void) {
+// Listen for changes to a specific auction
+export function listenToAuctionChanges(
+  auctionId: string, 
+  callback: (updatedAuction: any) => void
+): () => void {
   const channel = supabase
-    .channel(`auction_${auctionId}`)
+    .channel(`auction:${auctionId}`)
     .on(
       'postgres_changes',
       {
-        event: '*',
+        event: 'UPDATE',
         schema: 'public',
-        table: 'bids',
-        filter: `auction_id=eq.${auctionId}`,
+        table: 'auctions',
+        filter: `id=eq.${auctionId}`
       },
-      () => {
-        onUpdate();
+      (payload) => {
+        callback(payload.new);
       }
     )
     .subscribe();
@@ -25,20 +27,28 @@ export function listenToAuctionChanges(auctionId: string, onUpdate: () => void) 
   };
 }
 
-// Listen to the user's bids
-export function listenToUserBids(userId: string, onUpdate: () => void) {
+// Listen for changes to a user's bids
+export function listenToUserBids(callback: () => void): () => void {
+  const { data } = supabase.auth.getSession();
+  const user = data.session?.user;
+  
+  if (!user) {
+    console.error("Cannot listen to bids: User not authenticated");
+    return () => {};
+  }
+
   const channel = supabase
-    .channel(`user_bids_${userId}`)
+    .channel(`user-bids:${user.id}`)
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'bids',
-        filter: `bidder_id=eq.${userId}`,
+        filter: `bidder_id=eq.${user.id}`
       },
       () => {
-        onUpdate();
+        callback();
       }
     )
     .subscribe();

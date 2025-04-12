@@ -3,13 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Product, ProductData } from "./types";
 
 export interface ProductManagementService {
-  createProduct: (productData: ProductData) => Promise<Product | null>;
-  updateProduct: (productId: string, updates: Partial<ProductData>) => Promise<Product | null>;
+  createProduct: (productData: ProductData) => Promise<Product>;
+  updateProduct: (productId: string, updates: Partial<ProductData>) => Promise<Product>;
   deleteProduct: (productId: string) => Promise<void>;
 }
 
 // Create a new product
-export const createProduct = async (productData: ProductData): Promise<Product | null> => {
+export const createProduct = async (productData: ProductData): Promise<Product> => {
   try {
     const { data: userData } = await supabase.auth.getSession();
     const user = userData.session?.user;
@@ -42,7 +42,7 @@ export const createProduct = async (productData: ProductData): Promise<Product |
       p_activity_type: "create_product",
       p_resource_id: data.id,
       p_resource_type: "product",
-      p_details: {}
+      p_details: JSON.stringify({})
     });
 
     return data;
@@ -53,7 +53,7 @@ export const createProduct = async (productData: ProductData): Promise<Product |
 };
 
 // Update an existing product
-export const updateProduct = async (productId: string, updates: Partial<ProductData>): Promise<Product | null> => {
+export const updateProduct = async (productId: string, updates: Partial<ProductData>): Promise<Product> => {
   try {
     const { data: userData } = await supabase.auth.getSession();
     const user = userData.session?.user;
@@ -95,7 +95,7 @@ export const updateProduct = async (productId: string, updates: Partial<ProductD
       p_activity_type: "update_product",
       p_resource_id: productId,
       p_resource_type: "product",
-      p_details: {}
+      p_details: JSON.stringify({})
     });
 
     return data;
@@ -132,7 +132,7 @@ export const deleteProduct = async (productId: string): Promise<void> => {
       p_activity_type: "delete_product",
       p_resource_id: productId,
       p_resource_type: "product",
-      p_details: {}
+      p_details: JSON.stringify({})
     });
 
     const { error } = await supabase.from("products").delete().eq("id", productId);
