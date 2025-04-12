@@ -6,13 +6,17 @@ export interface AuthError {
 }
 
 export interface SignUpResponse {
-  user: User | null;
-  error: AuthError | null;
+  success: boolean;
+  error?: string;
+  data?: any;
+  user?: User | null;
 }
 
 export interface SignInResponse {
-  user: User | null;
-  error: AuthError | null;
+  success: boolean;
+  error?: string;
+  data?: any;
+  user?: User | null;
 }
 
 export interface UserProfile {
@@ -21,6 +25,11 @@ export interface UserProfile {
   email: string | null;
   role: string | null;
   created_at: string | null;
+  phone?: string | null;
+  address?: string | null;
+  avatar?: string | null;
+  avatar_url?: string | null;
+  joinDate?: string | null;
 }
 
 export type Profile = UserProfile;

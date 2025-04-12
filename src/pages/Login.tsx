@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -64,7 +63,7 @@ const Login = () => {
       } else {
         toast({
           title: "Login Failed",
-          description: result.message || "Invalid email or password",
+          description: result.error || "Invalid email or password",
           variant: "destructive",
         });
       }
@@ -127,7 +126,7 @@ const Login = () => {
       } else {
         toast({
           title: "Signup Failed",
-          description: result.message || "There was a problem creating your account",
+          description: result.error || "There was a problem creating your account",
           variant: "destructive",
         });
       }

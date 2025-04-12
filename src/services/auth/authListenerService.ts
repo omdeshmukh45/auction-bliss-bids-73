@@ -2,7 +2,7 @@
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { UserProfile } from "./types";
-import { getUserProfile } from "./profileService";
+import { getProfile } from "./profileService";
 
 // Function to set up authentication state listener
 export const setupAuthListener = (
@@ -20,7 +20,7 @@ export const setupAuthListener = (
     const user = session?.user;
 
     if (user) {
-      getUserProfile(user.id)
+      getProfile()
         .then((profile) => {
           isLoading = false;
           callback({
@@ -60,7 +60,7 @@ export const setupAuthListener = (
 
       if (user) {
         try {
-          const profile = await getUserProfile(user.id);
+          const profile = await getProfile();
           callback({
             user,
             session,

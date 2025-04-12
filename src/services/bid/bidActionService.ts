@@ -1,95 +1,78 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { BidHistoryItem } from "./types";
 
-// Place a bid on an auction
-export const placeBid = async (
-  auctionId: string,
-  amount: number
-): Promise<{ success: boolean; bid?: BidHistoryItem; error?: string }> => {
+interface PlaceBidParams {
+  auctionId: string;
+  amount: number;
+  userId: string;
+  userName: string;
+}
+
+export async function placeBid({ auctionId, amount, userId, userName }: PlaceBidParams) {
   try {
-    const { data: userData } = await supabase.auth.getSession();
-    const user = userData.session?.user;
-    
-    if (!user) {
-      return { success: false, error: "User not authenticated" };
-    }
-
-    // Get user's profile for bidder name
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("name")
-      .eq("id", user.id)
-      .single();
-
-    const bidderName = profileData?.name || "Anonymous";
-
-    // First check if the bid is valid (higher than current bid)
-    const { data: auctionData, error: auctionError } = await supabase
+    // Verify the auction exists and is active
+    const { data: auction, error: auctionError } = await supabase
       .from("auctions")
-      .select("current_bid, min_bid_increment")
+      .select("*")
       .eq("id", auctionId)
       .single();
-
+    
     if (auctionError) {
-      console.error("Error fetching auction:", auctionError);
       return { success: false, error: "Auction not found" };
     }
-
-    const currentBid = auctionData.current_bid;
-    const minIncrement = auctionData.min_bid_increment || 1;
-
-    if (amount <= currentBid) {
-      return {
-        success: false,
-        error: `Bid must be higher than current bid: ${currentBid}`,
+    
+    // Check if auction is still active
+    if (new Date(auction.end_time) < new Date()) {
+      return { success: false, error: "Auction has ended" };
+    }
+    
+    // Check if bid amount is valid
+    if (amount <= auction.current_bid) {
+      return { 
+        success: false, 
+        error: `Bid must be higher than the current bid (${auction.current_bid})`
       };
     }
-
-    if (amount < currentBid + minIncrement) {
-      return {
-        success: false,
-        error: `Bid must be at least ${minIncrement} higher than current bid`,
-      };
-    }
-
-    // Insert the bid
-    const { data: bidData, error: bidError } = await supabase
+    
+    // Place the bid
+    const { data: bid, error: bidError } = await supabase
       .from("bids")
-      .insert({
-        auction_id: auctionId,
-        bidder_id: user.id,
-        bidder_name: bidderName,
-        amount: amount,
-      })
+      .insert([
+        { 
+          auction_id: auctionId,
+          bidder_id: userId,
+          bidder_name: userName,
+          amount: amount,
+        }
+      ])
       .select()
       .single();
-
+    
     if (bidError) {
       console.error("Error placing bid:", bidError);
-      return { success: false, error: bidError.message };
+      return { success: false, error: "Failed to place bid" };
     }
-
-    // Log the bid activity
-    await supabase.rpc("log_activity", {
-      p_user_id: user.id,
-      p_activity_type: "place_bid",
-      p_resource_id: auctionId,
-      p_resource_type: "auction",
-      p_details: JSON.stringify({ bid_amount: amount })
-    });
-
-    return {
-      success: true,
-      bid: {
-        id: bidData.id,
-        bidder_name: bidderName,
-        amount: amount,
-        time: bidData.time,
-      },
-    };
+    
+    // Log auction activity
+    try {
+      await supabase.rpc("log_product_activity", {
+        p_user_id: userId,
+        p_activity_type: "place_bid",
+        p_resource_id: auctionId,
+        p_resource_type: "auction",
+        p_details: { bid_amount: amount }
+      });
+    } catch (error) {
+      // Just log the error, don't fail the bid
+      console.error("Error logging bid activity:", error);
+    }
+    
+    return { success: true, data: bid };
   } catch (error: any) {
     console.error("Error in placeBid:", error);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "An unknown error occurred" 
+    };
   }
-};
+}

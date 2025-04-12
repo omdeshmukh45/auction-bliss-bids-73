@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -70,7 +71,7 @@ const Profile = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    const unsubscribe = listenToUserBids((bids) => {
+    const unsubscribe = listenToUserBids((bids: any[]) => {
       setBidHistory(bids);
       
       const won = bids.filter(bid => 
@@ -119,8 +120,7 @@ const Profile = () => {
     try {
       if (!profile) throw new Error("No profile found");
       
-      const updatedProfile = await updateProfile(profile.id, { name });
-      setFormData(prev => ({ ...prev, name: updatedProfile.name }));
+      const updatedProfile = await updateUserProfile(profile.id, { name: formData.name });
       
       await refreshUserProfile();
       
@@ -221,7 +221,7 @@ const Profile = () => {
                     Upload New Photo
                   </Button>
                   <p className="text-xs text-muted-foreground mt-4">
-                    Member since: {profile.joinDate || 'N/A'}
+                    Member since: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}
                   </p>
                 </CardContent>
               </Card>

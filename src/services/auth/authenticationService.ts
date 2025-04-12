@@ -31,8 +31,8 @@ export async function signUp(
       });
     }
 
-    return { success: true, data };
-  } catch (error) {
+    return { success: true, data, user: data.user };
+  } catch (error: any) {
     console.error("Sign up error:", error);
     return {
       success: false,
@@ -66,8 +66,8 @@ export async function signIn(
       });
     }
 
-    return { success: true, data };
-  } catch (error) {
+    return { success: true, data, user: data.user };
+  } catch (error: any) {
     console.error("Sign in error:", error);
     return {
       success: false,
@@ -85,7 +85,7 @@ export async function signOut(): Promise<{ success: boolean; error?: string }> {
     }
 
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Sign out error:", error);
     return {
       success: false,
@@ -107,7 +107,7 @@ export async function resetPassword(
     }
 
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Reset password error:", error);
     return {
       success: false,
@@ -127,7 +127,7 @@ export async function updatePassword(
     }
 
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Update password error:", error);
     return {
       success: false,

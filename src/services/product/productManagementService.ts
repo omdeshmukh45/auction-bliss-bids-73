@@ -1,148 +1,156 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { Product, ProductData } from "./types";
-
-export interface ProductManagementService {
-  createProduct: (productData: ProductData) => Promise<Product>;
-  updateProduct: (productId: string, updates: Partial<ProductData>) => Promise<Product>;
-  deleteProduct: (productId: string) => Promise<void>;
-}
+import { Product, ProductFormData } from "./types";
 
 // Create a new product
-export const createProduct = async (productData: ProductData): Promise<Product> => {
+export async function createProduct(productData: ProductFormData): Promise<{ 
+  success: boolean;
+  data?: Product;
+  error?: string; 
+}> {
   try {
     const { data: userData } = await supabase.auth.getSession();
-    const user = userData.session?.user;
     
-    if (!user) {
-      throw new Error("User not authenticated");
+    if (!userData.session) {
+      return { success: false, error: "User not authenticated" };
     }
-
+    
+    const userId = userData.session.user.id;
+    
     const { data, error } = await supabase
       .from("products")
       .insert({
-        ...productData,
-        owner_id: user.id,
+        title: productData.title,
+        description: productData.description,
+        price: productData.price,
+        image_url: productData.imageUrl,
+        owner_id: userId,
       })
       .select()
       .single();
-
+    
     if (error) {
       console.error("Error creating product:", error);
-      throw error;
+      return { success: false, error: "Failed to create product" };
     }
-
-    if (!data) {
-      throw new Error("No data returned from product creation");
-    }
-
-    // Log the product creation activity
-    await supabase.rpc("log_product_activity", {
-      p_user_id: user.id,
-      p_activity_type: "create_product",
-      p_resource_id: data.id,
-      p_resource_type: "product",
-      p_details: JSON.stringify({})
-    });
-
-    return data;
-  } catch (error) {
+    
+    return { success: true, data };
+  } catch (error: any) {
     console.error("Error in createProduct:", error);
-    throw error;
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "An unknown error occurred" 
+    };
   }
-};
+}
 
-// Update an existing product
-export const updateProduct = async (productId: string, updates: Partial<ProductData>): Promise<Product> => {
+// Update a product
+export async function updateProduct(
+  productId: string, 
+  updates: Partial<ProductFormData>
+): Promise<{ 
+  success: boolean;
+  data?: Product;
+  error?: string; 
+}> {
   try {
     const { data: userData } = await supabase.auth.getSession();
-    const user = userData.session?.user;
     
-    if (!user) {
-      throw new Error("User not authenticated");
+    if (!userData.session) {
+      return { success: false, error: "User not authenticated" };
     }
-
-    // First verify this is the user's product
-    const { data: product } = await supabase
+    
+    const userId = userData.session.user.id;
+    
+    // First check if the product belongs to the user
+    const { data: product, error: fetchError } = await supabase
       .from("products")
-      .select("owner_id")
+      .select("*")
       .eq("id", productId)
-      .single();
-
-    if (!product || product.owner_id !== user.id) {
-      throw new Error("You can only update your own products");
+      .eq("owner_id", userId)
+      .maybeSingle();
+    
+    if (fetchError || !product) {
+      return { 
+        success: false, 
+        error: "Product not found or you don't have permission to update it" 
+      };
     }
-
+    
+    // Perform the update
     const { data, error } = await supabase
       .from("products")
-      .update(updates)
+      .update({
+        title: updates.title !== undefined ? updates.title : product.title,
+        description: updates.description !== undefined ? updates.description : product.description,
+        price: updates.price !== undefined ? updates.price : product.price,
+        image_url: updates.imageUrl !== undefined ? updates.imageUrl : product.image_url,
+      })
       .eq("id", productId)
       .select()
       .single();
-
+    
     if (error) {
       console.error("Error updating product:", error);
-      throw error;
+      return { success: false, error: "Failed to update product" };
     }
-
-    if (!data) {
-      throw new Error("No data returned from product update");
-    }
-
-    // Log the product update activity
-    await supabase.rpc("log_product_activity", {
-      p_user_id: user.id,
-      p_activity_type: "update_product",
-      p_resource_id: productId,
-      p_resource_type: "product",
-      p_details: JSON.stringify({})
-    });
-
-    return data;
-  } catch (error) {
+    
+    return { success: true, data };
+  } catch (error: any) {
     console.error("Error in updateProduct:", error);
-    throw error;
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "An unknown error occurred" 
+    };
   }
-};
+}
 
 // Delete a product
-export const deleteProduct = async (productId: string): Promise<void> => {
+export async function deleteProduct(productId: string): Promise<{ 
+  success: boolean; 
+  error?: string; 
+}> {
   try {
     const { data: userData } = await supabase.auth.getSession();
-    const user = userData.session?.user;
     
-    if (!user) {
-      throw new Error("User not authenticated");
+    if (!userData.session) {
+      return { success: false, error: "User not authenticated" };
     }
-
-    // First verify this is the user's product
-    const { data: product } = await supabase
+    
+    const userId = userData.session.user.id;
+    
+    // First check if the product belongs to the user
+    const { data: product, error: fetchError } = await supabase
       .from("products")
-      .select("owner_id")
+      .select("*")
       .eq("id", productId)
-      .single();
-
-    if (!product || product.owner_id !== user.id) {
-      throw new Error("You can only delete your own products");
+      .eq("owner_id", userId)
+      .maybeSingle();
+    
+    if (fetchError || !product) {
+      return { 
+        success: false, 
+        error: "Product not found or you don't have permission to delete it" 
+      };
     }
-
-    // Log the product deletion activity before deleting the product
-    await supabase.rpc("log_product_activity", {
-      p_user_id: user.id,
-      p_activity_type: "delete_product",
-      p_resource_id: productId,
-      p_resource_type: "product",
-      p_details: JSON.stringify({})
-    });
-
-    const { error } = await supabase.from("products").delete().eq("id", productId);
-
+    
+    // Perform the delete
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", productId);
+    
     if (error) {
       console.error("Error deleting product:", error);
-      throw error;
+      return { success: false, error: "Failed to delete product" };
     }
-  } catch (error) {
+    
+    return { success: true };
+  } catch (error: any) {
     console.error("Error in deleteProduct:", error);
-    throw error;
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "An unknown error occurred" 
+    };
   }
-};
+}
