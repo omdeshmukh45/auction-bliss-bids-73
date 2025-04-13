@@ -13,4 +13,4 @@ export { signOut as logoutUser, signOut as signOutUser };
 
 // Export signUp with alias for backward compatibility
 import { signUp } from "./authenticationService";
-export { signUp as registerUser };
+export { signUp as registerUser, signUp as signUpWithEmail };

@@ -20,15 +20,19 @@ export async function signUp(
       return { success: false, error: error.message };
     }
 
-    // Log signup activity
+    // Log signup activity with proper JSON stringify
     if (data.user) {
-      await supabase.rpc("log_product_activity", {
-        p_user_id: data.user.id,
-        p_activity_type: "user_signup",
-        p_resource_id: data.user.id,
-        p_resource_type: "user",
-        p_details: { email: email }
-      });
+      try {
+        await supabase.rpc("log_product_activity", {
+          p_user_id: data.user.id,
+          p_activity_type: "user_signup",
+          p_resource_id: data.user.id,
+          p_resource_type: "user",
+          p_details: JSON.stringify({ email: email })
+        });
+      } catch (logError) {
+        console.error("Error logging signup:", logError);
+      }
     }
 
     return { success: true, data, user: data.user };
@@ -55,15 +59,19 @@ export async function signIn(
       return { success: false, error: error.message };
     }
 
-    // Log signin activity
+    // Log signin activity with proper JSON stringify
     if (data.user) {
-      await supabase.rpc("log_product_activity", {
-        p_user_id: data.user.id,
-        p_activity_type: "user_signin",
-        p_resource_id: data.user.id,
-        p_resource_type: "user",
-        p_details: { email: email }
-      });
+      try {
+        await supabase.rpc("log_product_activity", {
+          p_user_id: data.user.id,
+          p_activity_type: "user_signin",
+          p_resource_id: data.user.id,
+          p_resource_type: "user",
+          p_details: JSON.stringify({ email: email })
+        });
+      } catch (logError) {
+        console.error("Error logging signin:", logError);
+      }
     }
 
     return { success: true, data, user: data.user };

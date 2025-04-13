@@ -1,206 +1,217 @@
-
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import React, { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload } from "lucide-react";
-import { createProduct, Product } from "@/services/product";
-import { useAuth } from "@/context/AuthContext";
-import { uploadProductImage } from "@/services/storageService";
+import { createProduct } from "@/services/productService";
+import { Product } from "@/services/productService";
+import { ImageIcon, Plus } from "lucide-react";
 
 interface AddProductDialogProps {
   open: boolean;
-  onClose: () => void;
-  onProductAdded: (product: Product) => void;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: (product: Product) => void;
 }
 
-const AddProductDialog = ({ open, onClose, onProductAdded }: AddProductDialogProps) => {
+const AddProductDialog = ({ open, onOpenChange, onSuccess }: AddProductDialogProps) => {
   const { toast } = useToast();
-  const { profile } = useAuth();
-  
-  const [title, setTitle] = useState("");
-  const [price, setPrice] = useState("");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [price, setPrice] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImage(file);
-      setImagePreview(URL.createObjectURL(file));
+  const uploadImage = async (): Promise<string | undefined> => {
+    if (!imageFile) return undefined;
+
+    const formData = new FormData();
+    formData.append("file", imageFile);
+    formData.append("upload_preset", "auctionbliss");
+
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/dyg1mffxi/image/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Image upload failed");
+      }
+
+      const data = await response.json();
+      setImageUrl(data.secure_url);
+      return data.secure_url;
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      toast({
+        title: "Image upload failed",
+        description: error.message || "There was a problem uploading your image.",
+        variant: "destructive",
+      });
+      return undefined;
     }
   };
 
-  const handleSubmit = async () => {
-    if (!title || !price) {
-      toast({
-        title: "Missing information",
-        description: "Please provide a title and price for your product.",
-        variant: "destructive",
-      });
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const resetForm = () => {
+    setName("");
+    setDescription("");
+    setPrice("");
+    setImageFile(null);
+    setImageUrl(null);
+    setFormError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!name || !price) {
+      setFormError("Product name and price are required");
       return;
     }
-
-    if (!profile) {
-      toast({
-        title: "Authentication error",
-        description: "You must be logged in to add a product.",
-        variant: "destructive",
-      });
+    
+    if (isNaN(Number(price)) || Number(price) <= 0) {
+      setFormError("Price must be a valid positive number");
       return;
     }
-
+    
     setIsSubmitting(true);
+    setFormError(null);
     
     try {
-      let imageUrl = null;
-      
-      if (image) {
-        imageUrl = await uploadProductImage(image);
-      }
-      
-      const priceValue = parseFloat(price);
-      
-      if (isNaN(priceValue)) {
-        throw new Error("Invalid price format");
-      }
-      
-      const newProduct = await createProduct({
-        title,
-        price: priceValue,
+      // Prepare form data
+      const productData = {
+        title: name,
         description,
-        image_url: imageUrl,
-        owner_id: profile.id
-      });
+        price: Number(price),
+        imageUrl: imageFile ? await uploadImage() : undefined
+      };
       
-      toast({
-        title: "Product added",
-        description: "Your product has been added successfully.",
-      });
+      // Create the product
+      const result = await createProduct(productData);
       
-      onProductAdded(newProduct);
-      resetForm();
+      if (result.success && result.data) {
+        toast({
+          title: "Product created",
+          description: "Your product has been added successfully."
+        });
+        
+        // Reset form and close dialog
+        resetForm();
+        onOpenChange(false);
+        
+        // Notify parent component
+        if (onSuccess) {
+          onSuccess(result.data);
+        }
+      } else {
+        setFormError(result.error || "Failed to create product");
+      }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add product. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Error creating product:", error);
+      setFormError(error.message || "An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setTitle("");
-    setPrice("");
-    setDescription("");
-    setImage(null);
-    setImagePreview(null);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Plus className="mr-2 h-4 w-4" />
+          Add Product
+        </Button>
+      </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New Product</DialogTitle>
+          <DialogDescription>
+            Create a new product to sell on AuctionBliss
+          </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Product Title</Label>
+        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+          {formError && <p className="text-red-500 text-sm">{formError}</p>}
+          <div className="grid gap-2">
+            <Label htmlFor="name">Product Name</Label>
             <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter product title"
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
             />
           </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="price">Price</Label>
-            <Input
-              id="price"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="0.00"
-              type="number"
-              min="0"
-              step="0.01"
-            />
-          </div>
-          
-          <div className="space-y-2">
+          <div className="grid gap-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter product description"
-              rows={3}
             />
           </div>
-          
-          <div className="space-y-2">
-            <Label>Product Image</Label>
-            <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-md p-4">
-              {imagePreview ? (
-                <div className="relative w-full">
-                  <img
-                    src={imagePreview}
-                    alt="Product preview"
-                    className="object-cover w-full h-32 rounded-md"
-                  />
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setImage(null);
-                      setImagePreview(null);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
-                  <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                  <span className="text-sm text-muted-foreground">
-                    Click to upload image
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
-                </label>
-              )}
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="price">Price</Label>
+            <Input
+              type="number"
+              id="price"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
           </div>
-        </div>
-        
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
+          <div className="grid gap-2">
+            <Label htmlFor="image">Product Image</Label>
+            <Input
+              type="file"
+              id="image"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="hidden"
+            />
+            <Label htmlFor="image" className="cursor-pointer bg-muted rounded-md p-2 flex items-center justify-center">
+              {imageUrl ? (
+                <img src={imageUrl} alt="Preview" className="max-h-32 max-w-full" />
+              ) : (
+                <div className="flex flex-col items-center justify-center">
+                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Click to upload</p>
+                </div>
+              )}
+            </Label>
+          </div>
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Adding...
+                Loading ...
               </>
             ) : (
               "Add Product"
             )}
           </Button>
-        </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

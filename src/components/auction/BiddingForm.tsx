@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,7 @@ import { Heart, Share2, AlertTriangle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatPriceDisplay } from "@/utils/currency";
 import { useAuth } from "@/context/AuthContext";
-import { placeBid } from "@/services/bidService";
+import { placeBid } from "@/services/bid/bidActionService";
 
 interface BiddingFormProps {
   auction: {
@@ -26,13 +27,13 @@ interface BiddingFormProps {
 
 const BiddingForm = ({ auction }: BiddingFormProps) => {
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, profile } = useAuth();
   const [bidAmount, setBidAmount] = useState("");
   const [isWatching, setIsWatching] = useState(false);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   
   const handlePlaceBid = async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user || !profile) {
       toast({
         title: "Login required",
         description: "You must be logged in to place a bid.",
@@ -62,16 +63,30 @@ const BiddingForm = ({ auction }: BiddingFormProps) => {
 
     setIsPlacingBid(true);
     try {
-      await placeBid(auction.id, amount);
-      
-      toast({
-        title: "Bid placed successfully!",
-        description: `You've placed a bid of ${formatPriceDisplay(amount)} on ${auction.title}.`,
-        variant: "default",
+      // Update to use the correct placeBid function signature
+      const result = await placeBid({
+        auctionId: auction.id,
+        amount: amount,
+        userId: user.id,
+        userName: profile.name || user.email || 'Anonymous'
       });
+      
+      if (result.success) {
+        toast({
+          title: "Bid placed successfully!",
+          description: `You've placed a bid of ${formatPriceDisplay(amount)} on ${auction.title}.`,
+          variant: "default",
+        });
 
-      // Reset bid amount
-      setBidAmount("");
+        // Reset bid amount
+        setBidAmount("");
+      } else {
+        toast({
+          title: "Bid failed",
+          description: result.error || "There was a problem placing your bid. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Bid failed",

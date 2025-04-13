@@ -77,15 +77,17 @@ export async function updateProduct(
       };
     }
     
+    // Prepare update object with correct field names
+    const updateObject: any = {};
+    if (updates.title !== undefined) updateObject.title = updates.title;
+    if (updates.description !== undefined) updateObject.description = updates.description;
+    if (updates.price !== undefined) updateObject.price = updates.price;
+    if (updates.imageUrl !== undefined) updateObject.image_url = updates.imageUrl;
+    
     // Perform the update
     const { data, error } = await supabase
       .from("products")
-      .update({
-        title: updates.title !== undefined ? updates.title : product.title,
-        description: updates.description !== undefined ? updates.description : product.description,
-        price: updates.price !== undefined ? updates.price : product.price,
-        image_url: updates.imageUrl !== undefined ? updates.imageUrl : product.image_url,
-      })
+      .update(updateObject)
       .eq("id", productId)
       .select()
       .single();

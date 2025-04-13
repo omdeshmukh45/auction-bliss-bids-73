@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -113,7 +114,11 @@ const Login = () => {
     setIsSigningUp(true);
     
     try {
-      const result = await registerUser(signupEmail, signupPassword, signupName, role);
+      // Fix the registerUser call - only pass email, password, and metadata object
+      const result = await registerUser(signupEmail, signupPassword, {
+        name: signupName,
+        role: role
+      });
       
       if (result.success) {
         toast({

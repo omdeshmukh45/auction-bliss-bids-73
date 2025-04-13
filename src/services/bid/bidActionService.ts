@@ -53,14 +53,14 @@ export async function placeBid({ auctionId, amount, userId, userName }: PlaceBid
       return { success: false, error: "Failed to place bid" };
     }
     
-    // Log auction activity
+    // Log auction activity (replacing string keys with proper object)
     try {
       await supabase.rpc("log_product_activity", {
         p_user_id: userId,
         p_activity_type: "place_bid",
         p_resource_id: auctionId,
         p_resource_type: "auction",
-        p_details: { bid_amount: amount }
+        p_details: JSON.stringify({ bid_amount: amount })
       });
     } catch (error) {
       // Just log the error, don't fail the bid

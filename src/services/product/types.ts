@@ -1,6 +1,4 @@
 
-import { supabase } from "@/integrations/supabase/client";
-
 export interface Product {
   id: string;
   title: string;
@@ -12,19 +10,19 @@ export interface Product {
 }
 
 export interface ProductData {
+  id: string;
   title: string;
   description?: string;
   price: number;
   image_url?: string;
   owner_id: string;
+  created_at?: string;
 }
 
-export interface ProductFilter {
-  minPrice?: number;
-  maxPrice?: number;
-  searchTerm?: string;
-  sortBy?: "price" | "title" | "created_at";
-  sortOrder?: "asc" | "desc";
+// Add the missing ProductFormData interface
+export interface ProductFormData {
+  title: string;
+  description?: string;
+  price: number;
+  imageUrl?: string;
 }
-
-// No interface re-exports here, they're defined in their respective service files

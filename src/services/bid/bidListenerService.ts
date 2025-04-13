@@ -83,3 +83,47 @@ export const listenToUserBids = (callback: (bids: any[]) => void) => {
     subscription.unsubscribe();
   };
 };
+
+// Add the missing listenToAuctionChanges function
+export const listenToAuctionChanges = (auctionId: string, callback: (auction: any) => void) => {
+  // Initial fetch of auction data
+  const fetchAuction = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("auctions")
+        .select("*")
+        .eq("id", auctionId)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching auction:", error);
+        return;
+      }
+      
+      callback(data);
+    } catch (error) {
+      console.error("Error in listenToAuctionChanges:", error);
+    }
+  };
+  
+  // Initial fetch
+  fetchAuction();
+  
+  // Set up real-time subscription
+  const subscription = supabase
+    .channel(`auction:${auctionId}`)
+    .on("postgres_changes", { 
+      event: "*", 
+      schema: "public", 
+      table: "auctions",
+      filter: `id=eq.${auctionId}` 
+    }, (payload) => {
+      callback(payload.new);
+    })
+    .subscribe();
+  
+  // Return unsubscribe function
+  return () => {
+    subscription.unsubscribe();
+  };
+};

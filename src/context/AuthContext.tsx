@@ -1,6 +1,7 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { setupAuthListener, UserProfile, getUserProfile } from "@/services/auth";
+import { setupAuthListener, UserProfile, getProfile } from "@/services/auth";
 import { Loader2 } from "lucide-react";
 
 interface AuthContextType {
@@ -46,7 +47,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUserProfile = async () => {
     if (user) {
       try {
-        const updatedProfile = await getUserProfile(user.id);
+        // Call getProfile without arguments - it will get the current user's profile
+        const updatedProfile = await getProfile();
         setProfile(updatedProfile);
       } catch (error) {
         console.error("Error refreshing user profile:", error);
